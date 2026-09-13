@@ -5,7 +5,7 @@
 
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Header } from '../../components/common';
@@ -14,9 +14,10 @@ import Icon from '../../components/Icon';
 import { useDoctor } from '../../contexts/DoctorContext';
 import { borderRadius, colors, spacing, typography } from '../../styles/theme';
 
-const screenWidth = Dimensions.get('window').width;
-
 const AnalyticsScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const chartViewportWidth = Math.min(width, 1180);
   const {
     analytics,
     analyticsFilter,
@@ -95,7 +96,7 @@ const AnalyticsScreen = ({ navigation }) => {
   const hasNonZeroAppointments =
     appointmentsData.datasets[0].data.some(v => Number(v) > 0);
 
-  const baseChartWidth = screenWidth - spacing.lg * 4;
+  const baseChartWidth = Math.max(240, chartViewportWidth - spacing.lg * 4);
 
   const isScrollablePeriod =
     analyticsFilter.period === 'month' ||
@@ -111,6 +112,52 @@ const AnalyticsScreen = ({ navigation }) => {
     return Math.max(dynamicWidth, baseChartWidth);
   };
 
+  const promptForDate = (label, initialDate) => {
+    if (!isWeb || typeof window === 'undefined') return null;
+
+    const defaultValue = initialDate ? initialDate.toISOString().slice(0, 10) : '';
+    const value = window.prompt(`${label} (YYYY-MM-DD)`, defaultValue);
+    if (!value) return null;
+
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+      window.alert('Please enter a valid date in YYYY-MM-DD format.');
+      return null;
+    }
+
+    return parsedDate;
+  };
+
+  const openFromPicker = () => {
+    if (isWeb) {
+      const selectedDate = promptForDate('From date', fromDate);
+      if (selectedDate) {
+        setFromDate(selectedDate);
+        setToDate(null);
+      }
+      return;
+    }
+
+    setShowFromPicker(true);
+  };
+
+  const openToPicker = () => {
+    if (isWeb) {
+      const selectedDate = promptForDate('To date', toDate || fromDate);
+      if (selectedDate) {
+        setToDate(selectedDate);
+        loadAnalytics({
+          period: 'custom',
+          startDate: fromDate,
+          endDate: selectedDate,
+        });
+      }
+      return;
+    }
+
+    setShowToPicker(true);
+  };
+
 
 
   return (
@@ -122,7 +169,11 @@ const AnalyticsScreen = ({ navigation }) => {
         variant="surface"
       />
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <AnalyticsFilterBar
           value={analyticsFilter.period}
           onChange={(period) => {
@@ -138,7 +189,7 @@ const AnalyticsScreen = ({ navigation }) => {
             <View style={{ flexDirection: 'row', gap: spacing.md }}>
               <TouchableOpacity
                 style={styles.dateChip}
-                onPress={() => setShowFromPicker(true)}
+                onPress={openFromPicker}
               >
                 <Text style={styles.dateText}>
                   {fromDate ? fromDate.toDateString() : 'From date'}
@@ -147,7 +198,7 @@ const AnalyticsScreen = ({ navigation }) => {
 
               <TouchableOpacity
                 style={styles.dateChip}
-                onPress={() => setShowToPicker(true)}
+                onPress={openToPicker}
                 disabled={!fromDate}
               >
                 <Text style={styles.dateText}>
@@ -200,6 +251,8 @@ const AnalyticsScreen = ({ navigation }) => {
               {hasNonZeroRevenue ? (
                 <>
                   <ScrollView
+                    style={styles.chartScroller}
+                    contentContainerStyle={styles.chartScrollerContent}
                     horizontal
                     showsHorizontalScrollIndicator={false}
                   >
@@ -254,6 +307,8 @@ const AnalyticsScreen = ({ navigation }) => {
               {hasNonZeroAppointments ? (
                 <>
                   <ScrollView
+                    style={styles.chartScroller}
+                    contentContainerStyle={styles.chartScrollerContent}
                     horizontal
                     showsHorizontalScrollIndicator={false}
                   >
@@ -352,7 +407,7 @@ const AnalyticsScreen = ({ navigation }) => {
             </Card>
           </View>
         </View>
-        {showFromPicker && (
+        {showFromPicker && !isWeb && (
           <DateTimePicker
             value={fromDate || new Date()}
             mode="date"
@@ -368,7 +423,7 @@ const AnalyticsScreen = ({ navigation }) => {
           />
         )}
 
-        {showToPicker && (
+        {showToPicker && !isWeb && (
           <DateTimePicker
             value={toDate || fromDate || new Date()}
             mode="date"
@@ -403,6 +458,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.gray[50],
   },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
   content: {
     padding: spacing.lg,
   },
@@ -421,7 +482,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   statCard: {
-    width: (screenWidth - spacing.lg * 2 - spacing.md) / 2,
+    flexBasis: 220,
+    flexGrow: 1,
     padding: spacing.md,
     alignItems: 'center',
   },
@@ -461,11 +523,21 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     padding: spacing.lg,
-    alignItems: 'center',
+    alignItems: 'stretch',
     gap: spacing.md,
+    overflow: 'hidden',
+  },
+  chartScroller: {
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
+  },
+  chartScrollerContent: {
+    alignItems: 'center',
   },
 
   chart: {
+    alignSelf: 'center',
     marginVertical: spacing.sm,
     borderRadius: borderRadius.md,
   },

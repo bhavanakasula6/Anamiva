@@ -9,17 +9,18 @@ import {
   View,
   Text,
   FlatList,
+  Platform,
   StyleSheet,
-  Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useDoctor } from '../../contexts/DoctorContext';
+import socketService from '../../services/socketService';
 
 import {
   Card,
   Badge,
-  Button,
   EmptyState,
   Loading,
   Header,
@@ -29,16 +30,15 @@ import Icon from '../../components/Icon';
 import { colors, spacing, typography, shadows } from '../../styles/theme';
 
 const DoctorRecordVerificationScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
   const {
     pendingRecords,
     loadPendingRecords,
-    verifyRecord,
-    rejectRecord,
   } = useDoctor();
 
   const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState(null);
-  const [processingAction, setProcessingAction] = useState(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -56,42 +56,42 @@ const DoctorRecordVerificationScreen = ({ navigation }) => {
     }, [])
   );
 
-  const handleVerify = async (recordId) => {
-    setProcessingId(recordId);
-    setProcessingAction('verify');
-    const res = await verifyRecord(recordId);
-    setProcessingId(null);
-    setProcessingAction(null);
+  React.useEffect(() => {
+    const refreshPendingRecords = () => {
+      loadPendingRecords();
+    };
 
-    if (!res?.success) {
-      Alert.alert('Error', 'Failed to verify record');
+    const registerListeners = () => {
+      const socket = socketService.getSocket();
+      if (!socket) return false;
+
+      socket.off('medical-record-created', refreshPendingRecords);
+      socket.off('medical-record-updated', refreshPendingRecords);
+      socket.off('connect', registerListeners);
+
+      socket.on('medical-record-created', refreshPendingRecords);
+      socket.on('medical-record-updated', refreshPendingRecords);
+      socket.on('connect', registerListeners);
+
+      return true;
+    };
+
+    if (!registerListeners()) {
+      const interval = setInterval(() => {
+        if (registerListeners()) clearInterval(interval);
+      }, 500);
+      return () => clearInterval(interval);
     }
-  };
 
-  const handleReject = (recordId) => {
-    Alert.alert(
-      'Reject Record',
-      'Are you sure you want to reject this record?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            setProcessingId(recordId);
-            setProcessingAction('reject');
-            const res = await rejectRecord(recordId, 'Rejected by doctor');
-            setProcessingId(null);
-            setProcessingAction(null);
-
-            if (!res?.success) {
-              Alert.alert('Error', 'Failed to reject record');
-            }
-          },
-        },
-      ]
-    );
-  };
+    return () => {
+      const socket = socketService.getSocket();
+      if (socket) {
+        socket.off('medical-record-created', refreshPendingRecords);
+        socket.off('medical-record-updated', refreshPendingRecords);
+        socket.off('connect', registerListeners);
+      }
+    };
+  }, [loadPendingRecords]);
 
   const renderItem = ({ item }) => (
     <Card
@@ -117,27 +117,6 @@ const DoctorRecordVerificationScreen = ({ navigation }) => {
           Pending
         </Badge>
       </View>
-
-      <View style={styles.actions}>
-        <Button
-          size="sm"
-          variant="outline"
-          onPress={() => handleReject(item.id)}
-          loading={processingId === item.id && processingAction === 'reject'}
-          disabled={processingId !== null}
-        >
-          Reject
-        </Button>
-
-        <Button
-          size="sm"
-          onPress={() => handleVerify(item.id)}
-          loading={processingId === item.id && processingAction === 'verify'}
-          disabled={processingId !== null}
-        >
-          Verify
-        </Button>
-      </View>
     </Card>
   );
 
@@ -157,7 +136,10 @@ const DoctorRecordVerificationScreen = ({ navigation }) => {
         data={pendingRecords}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, isWeb && styles.webList]}
+        numColumns={isTabletUp ? 2 : 1}
+        key={isTabletUp ? 'verify-grid' : 'verify-list'}
+        columnWrapperStyle={isTabletUp && styles.listColumn}
         ListEmptyComponent={
           <EmptyState
             icon={<Icon name="check-circle" size={48} color={colors.gray[400]} />}
@@ -173,21 +155,22 @@ const DoctorRecordVerificationScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.white },
   list: { padding: spacing.lg },
-  card: { marginBottom: spacing.md, padding: spacing.lg, ...shadows.sm },
+  webList: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
+  listColumn: { gap: spacing.md },
+  card: { flex: 1, marginBottom: spacing.md, padding: spacing.lg, ...shadows.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  info: { flex: 1 },
+  info: { flex: 1, minWidth: 0 },
   title: {
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[900],
   },
   sub: { fontSize: typography.fontSize.sm, color: colors.gray[600] },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
 });
 
 export default DoctorRecordVerificationScreen;

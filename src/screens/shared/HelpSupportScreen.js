@@ -10,6 +10,8 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -31,6 +33,8 @@ import Icon from '../../components/Icon';
 
 const HelpSupportScreen = ({ navigation }) => {
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const { width } = useWindowDimensions();
+  const isWide = width >= 768;
 
   const faqs = [
     {
@@ -108,15 +112,15 @@ const HelpSupportScreen = ({ navigation }) => {
         style={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.content}>
+        <View style={[styles.content, Platform.OS === 'web' && styles.webContent]}>
           {/* Quick Actions */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               Get Help
             </Text>
 
-            <View style={styles.quickActions}>
-              <TouchableOpacity style={styles.actionCard}>
+            <View style={[styles.quickActions, isWide && styles.quickActionsWide]}>
+              <TouchableOpacity style={[styles.actionCard, isWide && styles.actionCardWide]}>
                 <Icon
                   name="chat"
                   size={28}
@@ -127,7 +131,7 @@ const HelpSupportScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionCard}>
+              <TouchableOpacity style={[styles.actionCard, isWide && styles.actionCardWide]}>
                 <Icon
                   name="mail"
                   size={28}
@@ -138,7 +142,7 @@ const HelpSupportScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionCard}>
+              <TouchableOpacity style={[styles.actionCard, isWide && styles.actionCardWide]}>
                 <Icon
                   name="phone"
                   size={28}
@@ -249,6 +253,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
 
+  webContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+  },
+
   section: {
     marginBottom: spacing.xl,
   },
@@ -262,11 +272,18 @@ const styles = StyleSheet.create({
 
   quickActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.md,
   },
 
+  quickActionsWide: {
+    flexWrap: 'nowrap',
+  },
+
   actionCard: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 120,
     backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
@@ -274,6 +291,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.gray[200],
     ...shadows.sm,
+  },
+
+  actionCardWide: {
+    minWidth: 0,
   },
 
   actionText: {
@@ -300,6 +321,7 @@ const styles = StyleSheet.create({
 
   faqQuestion: {
     flex: 1,
+    minWidth: 0,
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[900],
@@ -327,6 +349,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.sm,
+    minWidth: 0,
   },
 
   contactIcon: {

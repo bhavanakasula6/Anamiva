@@ -19,20 +19,51 @@ export const setCurrentUser = (user) => {
 
 export const getCurrentUserLocal = () => currentUser;
 
+const isBrowserFile = (file) =>
+  typeof File !== 'undefined' && file instanceof File;
+
+const appendUploadFile = (formData, fieldName, file, fallbackName) => {
+  if (!file) return;
+
+  if (isBrowserFile(file)) {
+    formData.append(fieldName, file, file.name || fallbackName);
+    return;
+  }
+
+  if (file.file && isBrowserFile(file.file)) {
+    formData.append(fieldName, file.file, file.name || file.file.name || fallbackName);
+    return;
+  }
+
+  const uri = typeof file === 'string' ? file : file.uri;
+  const name = file.name || uri?.split('/').pop() || fallbackName;
+  const ext = name.split('.').pop()?.toLowerCase();
+  const type =
+    file.mimeType ||
+    (file.type?.includes('/') ? file.type : null) ||
+    (ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg');
+
+  formData.append(fieldName, {
+    uri,
+    name,
+    type,
+  });
+};
+
 // ============================================
 // Authentication APIs
 // ============================================
 
 export const authAPI = {
-  // Send OTP to phone number
-  sendOTP: async (phone) => {
-    const response = await httpClient.post('/auth/send-otp', { phone });
+  // Send OTP to email
+  sendOTP: async (email) => {
+    const response = await httpClient.post('/auth/send-otp', { email });
     return response;
   },
 
   // Verify OTP
-  verifyOTP: async (phone, otp) => {
-    const response = await httpClient.post('/auth/verify-otp', { phone, otp });
+  verifyOTP: async (email, otp) => {
+    const response = await httpClient.post('/auth/verify-otp', { email, otp });
 
     // Store token if login successful (existing user)
     if (response.success && response.token) {
@@ -51,8 +82,8 @@ export const authAPI = {
   },
 
   // Select role (for new users)
-  selectRole: async (phone, role) => {
-    const response = await httpClient.post('/auth/select-role', { phone, role });
+  selectRole: async (email, role) => {
+    const response = await httpClient.post('/auth/select-role', { email, role });
     return response;
   },
 
@@ -116,15 +147,7 @@ export const authAPI = {
       }
 
       const formData = new FormData();
-      const filename = imageUri.split('/').pop();
-      const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
-      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-
-      formData.append('avatar', {
-        uri: imageUri,
-        name: filename || `avatar_${Date.now()}.${ext}`,
-        type: mimeType,
-      });
+      appendUploadFile(formData, 'avatar', imageUri, `avatar_${Date.now()}.jpg`);
 
       const url = `${API_BASE_URL}/auth/upload-avatar`;
 
@@ -410,18 +433,7 @@ export const medicalRecordsAPI = {
 
     const files = recordData.files || (recordData.file ? [recordData.file] : []);
     files.forEach((file, index) => {
-      const name = file.name || `record_${Date.now()}_${index}.jpg`;
-      const ext = name.split('.').pop()?.toLowerCase();
-      const type =
-        file.mimeType ||
-        (file.type?.includes('/') ? file.type : null) ||
-        (ext === 'pdf' ? 'application/pdf' : ext === 'png' ? 'image/png' : 'image/jpeg');
-
-      formData.append('files', {
-        uri: file.uri,
-        name,
-        type,
-      });
+      appendUploadFile(formData, 'files', file, `record_${Date.now()}_${index}.jpg`);
     });
 
     const response = await httpClient.post('/medical-records', formData);

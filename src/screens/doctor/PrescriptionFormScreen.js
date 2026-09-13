@@ -13,6 +13,8 @@ import {
     StyleSheet,
     ScrollView,
     Alert,
+    Platform,
+    useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -31,7 +33,10 @@ import { colors, spacing, typography, shadows, borderRadius } from '../../styles
 import { APPOINTMENT_STATUS } from '../../data/constants';
 
 const PrescriptionFormScreen = ({ route, navigation }) => {
-    const { appointmentId, appointmentStatus } = route.params;
+    const { appointmentId = '', appointmentStatus = null } = route.params || {};
+    const { width } = useWindowDimensions();
+    const isWeb = Platform.OS === 'web';
+    const isTabletUp = width >= 768;
 
     const {
         createPrescription,
@@ -182,85 +187,91 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
                 onLeftPress={navigation.goBack}
             />
 
-            <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                style={styles.container}
+                contentContainerStyle={[styles.scrollContent, isWeb && styles.webScrollContent]}
+                showsVerticalScrollIndicator={false}
+            >
 
                 {/* Diagnosis */}
-                <Card style={styles.card}>
-                    <Text style={styles.section}>Diagnosis</Text>
-                    <Input
-                        label="Prescription Date"
-                        value={recordDate}
-                        onChangeText={setRecordDate}
-                        placeholder="YYYY-MM-DD"
-                        keyboardType="numbers-and-punctuation"
-                        editable={!isLocked}
-                    />
-                    <Input
-                        value={diagnosis}
-                        onChangeText={setDiagnosis}
-                        placeholder="Enter diagnosis"
-                        multiline
-                        editable={!isLocked}
-                    />
-                </Card>
+                <View style={[styles.formGrid, isTabletUp && styles.formGridWide]}>
+                    <Card style={[styles.card, isTabletUp && styles.primaryCard]}>
+                        <Text style={styles.section}>Diagnosis</Text>
+                        <Input
+                            label="Prescription Date"
+                            value={recordDate}
+                            onChangeText={setRecordDate}
+                            placeholder="YYYY-MM-DD"
+                            keyboardType="numbers-and-punctuation"
+                            editable={!isLocked}
+                        />
+                        <Input
+                            value={diagnosis}
+                            onChangeText={setDiagnosis}
+                            placeholder="Enter diagnosis"
+                            multiline
+                            editable={!isLocked}
+                        />
+                    </Card>
 
-                {/* Medications */}
-                <Card style={styles.card}>
-                    <Text style={styles.section}>Medications</Text>
+                    {/* Medications */}
+                    <Card style={[styles.card, isTabletUp && styles.primaryCard]}>
+                        <Text style={styles.section}>Medications</Text>
 
-                    {medications.map((med, index) => (
-                        <View key={index} style={styles.medBox}>
-                            <View style={styles.medHeader}>
-                                <Text style={styles.medTitle}>
-                                    Medication {index + 1}
-                                </Text>
+                        {medications.map((med, index) => (
+                            <View key={index} style={styles.medBox}>
+                                <View style={styles.medHeader}>
+                                    <Text style={styles.medTitle}>
+                                        Medication {index + 1}
+                                    </Text>
 
-                                {!isLocked && medications.length > 1 && (
-                                    <Icon
-                                        name="trash"
-                                        size={16}
-                                        color={colors.danger[500]}
-                                        onPress={() => removeMedication(index)}
-                                    />
-                                )}
+                                    {!isLocked && medications.length > 1 && (
+                                        <Icon
+                                            name="trash"
+                                            size={16}
+                                            color={colors.danger[500]}
+                                            onPress={() => removeMedication(index)}
+                                        />
+                                    )}
+                                </View>
+
+                                <Input
+                                    placeholder="Medicine name"
+                                    value={med.name}
+                                    onChangeText={v => updateMedication(index, 'name', v)}
+                                    editable={!isLocked}
+                                />
+
+                                <Input
+                                    placeholder="Dosage (e.g. 500mg)"
+                                    value={med.dosage}
+                                    onChangeText={v => updateMedication(index, 'dosage', v)}
+                                    editable={!isLocked}
+                                />
+
+                                <Input
+                                    placeholder="Frequency (e.g. Twice daily)"
+                                    value={med.frequency}
+                                    onChangeText={v => updateMedication(index, 'frequency', v)}
+                                    editable={!isLocked}
+                                />
+
+                                <Input
+                                    placeholder="Duration (e.g. 5 days)"
+                                    value={med.duration}
+                                    onChangeText={v => updateMedication(index, 'duration', v)}
+                                    editable={!isLocked}
+                                />
                             </View>
+                        ))}
 
-                            <Input
-                                placeholder="Medicine name"
-                                value={med.name}
-                                onChangeText={v => updateMedication(index, 'name', v)}
-                                editable={!isLocked}
-                            />
-
-                            <Input
-                                placeholder="Dosage (e.g. 500mg)"
-                                value={med.dosage}
-                                onChangeText={v => updateMedication(index, 'dosage', v)}
-                                editable={!isLocked}
-                            />
-
-                            <Input
-                                placeholder="Frequency (e.g. Twice daily)"
-                                value={med.frequency}
-                                onChangeText={v => updateMedication(index, 'frequency', v)}
-                                editable={!isLocked}
-                            />
-
-                            <Input
-                                placeholder="Duration (e.g. 5 days)"
-                                value={med.duration}
-                                onChangeText={v => updateMedication(index, 'duration', v)}
-                                editable={!isLocked}
-                            />
-                        </View>
-                    ))}
-
-                    {!isLocked && (
-                        <Button variant="outline" onPress={addMedication}>
-                            + Add Medication
-                        </Button>
-                    )}
-                </Card>
+                        {!isLocked && (
+                            <Button variant="outline" onPress={addMedication}>
+                                + Add Medication
+                            </Button>
+                        )}
+                    </Card>
+                </View>
 
                 {/* Notes */}
                 <Card style={styles.card}>
@@ -302,12 +313,36 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: colors.white },
-    container: { padding: spacing.lg, backgroundColor: colors.gray[50] },
+    container: {
+        flex: 1,
+        backgroundColor: colors.gray[50],
+    },
+    scrollContent: {
+        padding: spacing.lg,
+        paddingBottom: spacing['2xl'],
+    },
+    webScrollContent: {
+        width: '100%',
+        maxWidth: 1180,
+        alignSelf: 'center',
+    },
+    formGrid: {
+        width: '100%',
+    },
+    formGridWide: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.lg,
+    },
 
     card: {
+        flex: 1,
         marginBottom: spacing.md,
         padding: spacing.lg,
         ...shadows.sm,
+    },
+    primaryCard: {
+        minWidth: 0,
     },
 
     section: {

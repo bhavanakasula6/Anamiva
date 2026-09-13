@@ -431,13 +431,24 @@ exports.updatePrescription = async (req, res) => {
     if (record.type === 'prescription') {
       try {
         const { getIO } = require('../sockets/socket');
-        getIO().to(`user_${(record.patientId?._id || record.patientId).toString()}`).emit('prescription-updated', {
+        const patientId = (record.patientId?._id || record.patientId).toString();
+        getIO().to(`user_${patientId}`).emit('prescription-updated', {
           appointmentId: record.appointmentId?.toString?.() || null,
           prescriptionId: record._id.toString(),
         });
-        getIO().to(`user_${(record.patientId?._id || record.patientId).toString()}`).emit('medication-updated', {
-          patientId: (record.patientId?._id || record.patientId).toString(),
+        getIO().to(`user_${patientId}`).emit('medication-updated', {
+          patientId,
           prescriptionId: record._id.toString(),
+        });
+        getIO().to(`user_${patientId}`).emit('medical-record-updated', {
+          recordId: record._id.toString(),
+          patientId,
+          status: record.status,
+        });
+        getIO().to('doctors').emit('medical-record-updated', {
+          recordId: record._id.toString(),
+          patientId,
+          status: record.status,
         });
       } catch (socketErr) {
         console.warn('Socket emit failed:', socketErr.message);

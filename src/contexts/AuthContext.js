@@ -10,6 +10,8 @@ import storage from '../services/storage';
 import { USER_ROLES } from '../data/constants';
 
 const AuthContext = createContext(null);
+const OTP_COOLDOWN_MS = 30000;
+const lastOtpSentAtByEmail = {};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -72,9 +74,23 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Send OTP
-  const sendOTP = async (phone) => {
+  const sendOTP = async (email) => {
     try {
-      const response = await authAPI.sendOTP(phone);
+      const now = Date.now();
+      const lastSentAt = lastOtpSentAtByEmail[email] || 0;
+
+      if (now - lastSentAt < OTP_COOLDOWN_MS) {
+        return {
+          success: true,
+          throttled: true,
+          message: 'OTP was already sent recently',
+        };
+      }
+
+      const response = await authAPI.sendOTP(email);
+      if (response?.success) {
+        lastOtpSentAtByEmail[email] = now;
+      }
       return response;
     } catch (error) {
       console.error('Error sending OTP:', error);
@@ -83,9 +99,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Verify OTP
-  const verifyOTP = async (phone, otp) => {
+  const verifyOTP = async (email, otp) => {
     try {
-      const response = await authAPI.verifyOTP(phone, otp);
+      const response = await authAPI.verifyOTP(email, otp);
 
       if (response.success && !response.isNewUser) {
         // Existing user - log them in
@@ -104,9 +120,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Select role (for new users)
-  const selectRole = async (phone, role) => {
+  const selectRole = async (email, role) => {
     try {
-      const response = await authAPI.selectRole(phone, role);
+      const response = await authAPI.selectRole(email, role);
       return response;
     } catch (error) {
       console.error('Error selecting role:', error);

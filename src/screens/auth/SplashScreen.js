@@ -8,6 +8,7 @@ import {
   View,
   Text,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -22,6 +23,8 @@ const SplashScreen = ({ navigation }) => {
   const hasNavigated = useRef(false);
   const startTime = useRef(Date.now());
   const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const { width } = useWindowDimensions();
+  const isSmall = width < 420;
 
   // Timer for minimum splash duration
   useEffect(() => {
@@ -52,8 +55,8 @@ const SplashScreen = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.center}>
         <View style={styles.logoWrapper}>
-          <View style={styles.logo}>
-            <Text style={styles.logoText}>M</Text>
+          <View style={[styles.logo, isSmall && styles.logoSmall]}>
+            <Text style={[styles.logoText, isSmall && styles.logoTextSmall]}>A</Text>
             {/* <Image
               source={require('../../assets/logo.png')}
               style={{ width: 72, height: 72, resizeMode: 'contain' }}
@@ -62,11 +65,11 @@ const SplashScreen = ({ navigation }) => {
         </View>
 
         <Text style={styles.title} allowFontScaling={false}>
-          MedApp
+          Anamiva
         </Text>
 
         <Text style={styles.subtitle} allowFontScaling={false}>
-          Your Health, Our Priority
+          Your health, organized with care
         </Text>
 
         <View style={styles.loader}>
@@ -86,7 +89,7 @@ const SplashScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.primary[500],
+    backgroundColor: '#123F39',
     justifyContent: 'space-between',
     paddingVertical: theme.spacing['2xl'],
   },
@@ -110,11 +113,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...theme.shadows.lg,
   },
+  logoSmall: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
 
   logoText: {
     fontSize: 48,
     fontFamily: theme.typography.fontFamily.bold,
     color: theme.colors.primary[500],
+  },
+  logoTextSmall: {
+    fontSize: 40,
   },
 
   title: {

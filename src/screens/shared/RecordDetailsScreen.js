@@ -7,10 +7,15 @@ import { useFocusEffect } from '@react-navigation/native';
 import React, { useState } from 'react';
 import {
   Alert,
+  Image,
+  Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -27,6 +32,7 @@ import {
 } from '../../components/common';
 
 import Icon from '../../components/Icon';
+import { API_BASE_URL } from '../../services/httpClient';
 
 import {
   borderRadius,
@@ -36,18 +42,51 @@ import {
   typography,
 } from '../../styles/theme';
 
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
+
+const getAttachmentName = (url, index) => {
+  const fallback = `Attachment ${index + 1}`;
+  if (!url) return fallback;
+
+  const cleanUrl = url.split('?')[0];
+  const name = cleanUrl.split('/').filter(Boolean).pop();
+  return name || fallback;
+};
+
+const getAttachmentType = (url) => {
+  const cleanUrl = (url || '').split('?')[0].toLowerCase();
+
+  if (/\.(jpg|jpeg|png|gif|webp)$/.test(cleanUrl)) return 'image';
+  if (cleanUrl.endsWith('.pdf')) return 'pdf';
+  return 'document';
+};
+
+const resolveAttachmentUrl = (url) => {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url) || url.startsWith('file://') || url.startsWith('content://')) {
+    return url;
+  }
+
+  const normalizedPath = url.startsWith('/') ? url : `/${url}`;
+  return `${API_ORIGIN}${normalizedPath}`;
+};
+
 const RecordDetailsScreen = ({ route, navigation }) => {
-  const { recordId, patientId, mode, record: passedRecord } = route.params;
+  const { recordId = '', patientId = '', mode, record: passedRecord } = route.params || {};
+  const { width } = useWindowDimensions();
   const isPatientView = mode === 'PATIENT';
+  const isWeb = Platform.OS === 'web';
+  const isWide = width >= 768;
 
   const { medicalRecords, loadMedicalRecords } = usePatient();
-  const { getPatientMedicalRecords, updatePrescription, verifyRecord } = useDoctor();
+  const { getPatientMedicalRecords, updatePrescription, verifyRecord, rejectRecord } = useDoctor();
 
   const [record, setRecord] = useState(null);
   const [recordDateText, setRecordDateText] = useState('');
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -58,8 +97,8 @@ const RecordDetailsScreen = ({ route, navigation }) => {
   const loadRecord = async () => {
     setLoading(true);
 
-    // 🟢 Doctor verification mode → record already provided
-    if (mode === 'DOCTOR_VERIFY' && passedRecord) {
+    // Some callers already have an authorized record payload.
+    if (passedRecord) {
       setRecord(passedRecord);
       setRecordDateText(
         new Date(passedRecord.recordDate || passedRecord.date || passedRecord.createdAt)
@@ -102,7 +141,7 @@ const RecordDetailsScreen = ({ route, navigation }) => {
 
   const handleSaveDate = async () => {
     if (Number.isNaN(new Date(recordDateText).getTime())) {
-      Alert.alert('Invalid date', 'Please enter date in YYYY-MM-DD format');
+      Alert.alert('Invalid prescription date', 'Please enter date in YYYY-MM-DD format');
       return;
     }
 
@@ -114,11 +153,11 @@ const RecordDetailsScreen = ({ route, navigation }) => {
 
     if (response?.success) {
       setRecord(response.record);
-      Alert.alert('Saved', 'Record date updated');
+      Alert.alert('Saved', 'Prescription date updated');
       return;
     }
 
-    Alert.alert('Error', 'Failed to update record date');
+    Alert.alert('Error', 'Failed to update prescription date');
   };
 
   const handleVerify = async () => {
@@ -133,6 +172,62 @@ const RecordDetailsScreen = ({ route, navigation }) => {
     }
 
     Alert.alert('Error', 'Failed to verify record');
+  };
+
+  const handleReject = () => {
+    Alert.alert(
+      'Reject Record',
+      'Are you sure you want to reject this record?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            setRejecting(true);
+            const response = await rejectRecord(record.id || record._id, 'Rejected by doctor');
+            setRejecting(false);
+
+            if (response?.success) {
+              setRecord(response.record);
+              navigation.goBack();
+              return;
+            }
+
+            Alert.alert('Error', 'Failed to reject record');
+          },
+        },
+      ]
+    );
+  };
+
+  const attachmentUrls = Array.from(
+    new Set([
+      ...(Array.isArray(record?.files) ? record.files : []),
+      record?.fileUrl,
+    ].filter(Boolean))
+  );
+
+  const openAttachment = async (url) => {
+    const resolvedUrl = resolveAttachmentUrl(url);
+
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const canOpen = await Linking.canOpenURL(resolvedUrl);
+      if (!canOpen) {
+        Alert.alert('Unable to open file', 'No app is available to open this document.');
+        return;
+      }
+
+      await Linking.openURL(resolvedUrl);
+    } catch (error) {
+      console.error('Failed to open attachment:', error);
+      Alert.alert('Unable to open file', 'Please try again.');
+    }
   };
 
   if (loading) {
@@ -158,10 +253,12 @@ const RecordDetailsScreen = ({ route, navigation }) => {
 
       <ScrollView
         style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[styles.content, isWeb && styles.webContent]}>
         {/* HEADER CARD */}
-        <Card style={styles.headerCard}>
+        <Card style={[styles.headerCard, isWide && styles.wideCard]}>
           <Text style={styles.title}>{record.title}</Text>
 
           <View style={styles.metaRow}>
@@ -175,6 +272,70 @@ const RecordDetailsScreen = ({ route, navigation }) => {
             </Text>
           </View>
         </Card>
+
+        {/* ATTACHMENTS */}
+        {attachmentUrls.length > 0 && (
+          <Card style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Attachments</Text>
+
+            <View style={[styles.attachmentsGrid, isWide && styles.attachmentsGridWide]}>
+            {attachmentUrls.map((fileUrl, index) => {
+              const attachmentType = getAttachmentType(fileUrl);
+              const resolvedUrl = resolveAttachmentUrl(fileUrl);
+              const attachmentName = getAttachmentName(fileUrl, index);
+
+              if (attachmentType === 'image') {
+                return (
+                  <TouchableOpacity
+                    key={`${fileUrl}-${index}`}
+                    activeOpacity={0.85}
+                    onPress={() => openAttachment(fileUrl)}
+                    style={[styles.imageAttachment, isWide && styles.attachmentTileWide]}
+                  >
+                    <Image
+                      source={{ uri: resolvedUrl }}
+                      style={styles.attachmentImage}
+                      resizeMode="contain"
+                    />
+                    <View style={styles.attachmentFooter}>
+                      <Icon name="image" size={16} color={colors.primary[500]} />
+                      <Text style={styles.attachmentName} numberOfLines={1}>
+                        {attachmentName}
+                      </Text>
+                      <Icon name="external-link" size={14} color={colors.gray[500]} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
+
+              return (
+                <TouchableOpacity
+                  key={`${fileUrl}-${index}`}
+                  style={[styles.fileAttachment, isWide && styles.attachmentTileWide]}
+                  onPress={() => openAttachment(fileUrl)}
+                >
+                  <View style={styles.fileIcon}>
+                    <Icon
+                      name={attachmentType === 'pdf' ? 'file-text' : 'file'}
+                      size={22}
+                      color={colors.primary[500]}
+                    />
+                  </View>
+                  <View style={styles.fileInfo}>
+                    <Text style={styles.attachmentName} numberOfLines={1}>
+                      {attachmentName}
+                    </Text>
+                    <Text style={styles.fileHint}>
+                      Tap to open
+                    </Text>
+                  </View>
+                  <Icon name="external-link" size={16} color={colors.gray[500]} />
+                </TouchableOpacity>
+              );
+            })}
+            </View>
+          </Card>
+        )}
 
         {/* DIAGNOSIS */}
         {record.diagnosis && (
@@ -217,7 +378,7 @@ const RecordDetailsScreen = ({ route, navigation }) => {
 
         {mode === 'DOCTOR_VERIFY' && (
           <Card style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Verification</Text>
+            <Text style={styles.sectionTitle}>Prescription Date</Text>
             <TextInput
               style={styles.input}
               value={recordDateText}
@@ -229,16 +390,24 @@ const RecordDetailsScreen = ({ route, navigation }) => {
             <View style={styles.actionRow}>
               <Button
                 variant="outline"
+                onPress={handleReject}
+                loading={rejecting}
+                disabled={savingDate || verifying || rejecting}
+              >
+                Reject
+              </Button>
+              <Button
+                variant="outline"
                 onPress={handleSaveDate}
                 loading={savingDate}
-                disabled={savingDate || verifying}
+                disabled={savingDate || verifying || rejecting}
               >
-                Save Date
+                Save
               </Button>
               <Button
                 onPress={handleVerify}
                 loading={verifying}
-                disabled={savingDate || verifying}
+                disabled={savingDate || verifying || rejecting}
               >
                 Verify
               </Button>
@@ -265,6 +434,7 @@ const RecordDetailsScreen = ({ route, navigation }) => {
         )}
 
         <View style={{ height: spacing.xl }} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -279,7 +449,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.gray[50],
+  },
+
+  content: {
     padding: spacing.lg,
+  },
+
+  webScrollContent: {
+    alignItems: 'center',
+  },
+
+  webContent: {
+    width: '100%',
+    maxWidth: 920,
   },
 
   headerCard: {
@@ -288,7 +470,12 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   },
 
+  wideCard: {
+    padding: spacing.xl,
+  },
+
   title: {
+    flexShrink: 1,
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
     color: colors.gray[900],
@@ -299,9 +486,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     marginTop: spacing.xs,
+    flexWrap: 'wrap',
   },
 
   metaText: {
+    flexShrink: 1,
     fontSize: typography.fontSize.sm,
     color: colors.gray[500],
   },
@@ -317,6 +506,85 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[800],
     marginBottom: spacing.sm,
+  },
+
+  imageAttachment: {
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.gray[50],
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+  },
+
+  attachmentsGrid: {
+    gap: spacing.sm,
+  },
+
+  attachmentsGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+
+  attachmentTileWide: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    minWidth: 260,
+  },
+
+  attachmentImage: {
+    width: '100%',
+    height: 280,
+    backgroundColor: colors.gray[100],
+  },
+
+  attachmentFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    padding: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray[200],
+  },
+
+  fileAttachment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.gray[50],
+    marginBottom: spacing.sm,
+  },
+
+  fileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primary[50],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+
+  fileInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  attachmentName: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.gray[800],
+  },
+
+  fileHint: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray[500],
+    marginTop: 2,
   },
 
   bodyText: {
@@ -335,9 +603,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    flexWrap: 'wrap',
   },
 
   medName: {
+    flexShrink: 1,
     fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[900],
@@ -379,6 +649,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing.sm,
+    flexWrap: 'wrap',
   },
 });
 

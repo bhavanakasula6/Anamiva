@@ -4,6 +4,7 @@ const MedicalRecord = require('../models/medicalrecord');
 const Consent = require('../models/consent');
 const Medication = require('../models/medication');
 const crypto = require('crypto');
+const { createNotification } = require('../services/notificationservice');
 
 const parseOptionalDate = (value) => {
   if (!value) return undefined;
@@ -235,6 +236,17 @@ exports.createAppointment = async (req, res) => {
       .populate({ path: 'doctorId', populate: { path: 'userId' } })
       .populate('patientId');
 
+    const doctorProfile = await Doctor.findById(doctorId);
+    if (doctorProfile) {
+      await createNotification({
+        userId: doctorProfile.userId,
+        title: 'New appointment request',
+        message: `${getSafeName(populated.patientId)} requested an appointment for ${date} at ${time}.`,
+        type: 'appointment',
+        data: { appointmentId: appointment._id.toString(), status: appointment.status },
+      });
+    }
+
     // Notify doctor via socket so their dashboard updates in real-time
     try {
       const doctorProfile = await Doctor.findById(doctorId);
@@ -384,9 +396,24 @@ exports.getAppointmentById = async (req, res) => {
 
     if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
+    const prescription = await MedicalRecord.findOne({
+      appointmentId: appointment._id,
+      type: 'prescription',
+    }).sort({ createdAt: -1 });
+
+    const transformedAppointment = transformAppointment(appointment);
+    if (prescription) {
+      transformedAppointment.prescriptionId = prescription._id.toString();
+      transformedAppointment.prescription = {
+        id: prescription._id.toString(),
+        ...prescription.toObject(),
+        date: prescription.recordDate || prescription.createdAt,
+      };
+    }
+
     res.json({
       success: true,
-      appointment: transformAppointment(appointment)
+      appointment: transformedAppointment
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -421,6 +448,19 @@ exports.updateStatus = async (req, res) => {
     }
 
     await appointment.save();
+
+    const statusMessages = {
+      upcoming: 'Your appointment has been accepted.',
+      cancelled: 'Your appointment has been cancelled.',
+      completed: 'Your appointment has been marked as completed.',
+    };
+    await createNotification({
+      userId: appointment.patientId,
+      title: 'Appointment updated',
+      message: statusMessages[status] || `Appointment status changed to ${status}.`,
+      type: 'appointment',
+      data: { appointmentId: appointment._id.toString(), status },
+    });
 
     if (status === 'completed' || status === 'cancelled') {
       await Consent.updateMany(
@@ -512,8 +552,19 @@ exports.cancelAppointment = async (req, res) => {
           status: 'expired',
           expiresAt: new Date(),
         },
-      }
-    );
+        }
+      );
+
+    const cancelledDoctor = await Doctor.findById(appointment.doctorId);
+    if (cancelledDoctor) {
+      await createNotification({
+        userId: cancelledDoctor.userId,
+        title: 'Appointment cancelled',
+        message: 'A patient cancelled an appointment.',
+        type: 'appointment',
+        data: { appointmentId: appointment._id.toString(), status: 'cancelled' },
+      });
+    }
 
     try {
       const { getIO } = require('../sockets/socket');
@@ -564,6 +615,17 @@ exports.rescheduleAppointment = async (req, res) => {
     appointment.time = time;
     appointment.status = 'upcoming';
     await appointment.save();
+
+    const rescheduledDoctor = await Doctor.findById(appointment.doctorId);
+    if (rescheduledDoctor) {
+      await createNotification({
+        userId: rescheduledDoctor.userId,
+        title: 'Appointment rescheduled',
+        message: `An appointment was rescheduled to ${date} at ${time}.`,
+        type: 'appointment',
+        data: { appointmentId: appointment._id.toString(), status: 'upcoming' },
+      });
+    }
 
     // Re-populate so transformAppointment has full patient/doctor data
     const populated = await Appointment.findById(appointment._id)
@@ -658,6 +720,14 @@ exports.createPrescription = async (req, res) => {
       recordDate: parseOptionalDate(recordDate) || new Date(),
       medications: medications || [],
       status: 'verified',
+    });
+
+    await createNotification({
+      userId: appointment.patientId,
+      title: 'New prescription available',
+      message: 'Your doctor added a prescription to your appointment.',
+      type: 'medication',
+      data: { appointmentId: appointment._id.toString(), prescriptionId: record._id.toString() },
     });
 
     const createdMedications = [];

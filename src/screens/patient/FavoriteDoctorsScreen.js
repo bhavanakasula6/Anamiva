@@ -6,10 +6,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,6 +35,9 @@ import Icon from '../../components/Icon';
 import { ACCESS_STATUS, CONSENT_TYPES } from '../../data/constants';
 
 const FavoriteDoctorsScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
   const {
     favorites,
     toggleFavorite,
@@ -345,8 +350,11 @@ const FavoriteDoctorsScreen = ({ navigation }) => {
         onLeftPress={navigation.goBack}
       />
 
-      <ScrollView style={styles.container}>
-        <View style={styles.content}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
+      >
+        <View style={[styles.content, isTabletUp && styles.contentWide]}>
           {loading && <Loading fullScreen text="Loading..." />}
 
           {!loading && favorites.length === 0 ? (
@@ -369,9 +377,22 @@ const FavoriteDoctorsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.white },
   container: { flex: 1, backgroundColor: colors.gray[50] },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
   content: { padding: spacing.lg },
+  contentWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+  },
 
   doctorCard: {
+    flexBasis: 360,
+    flexGrow: 1,
     marginBottom: spacing.lg,
     padding: spacing.lg,
   },
@@ -385,6 +406,7 @@ const styles = StyleSheet.create({
   doctorInfo: {
     flex: 1,
     marginLeft: spacing.md,
+    minWidth: 0,
   },
 
   doctorName: {
@@ -454,10 +476,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+    flex: 1,
+    minWidth: 0,
   },
 
   accessText: {
     fontSize: typography.fontSize.sm,
+    flexShrink: 1,
   },
 
   accessGranted: { color: colors.success[600] },

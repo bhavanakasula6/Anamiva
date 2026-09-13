@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,7 +24,15 @@ const SettingsScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
   const isDoctor = user?.role === 'doctor';
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to logout?');
+      if (confirmed) {
+        await logout();
+      }
+      return;
+    }
+
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Logout', style: 'destructive', onPress: logout },
@@ -54,7 +63,7 @@ const SettingsScreen = ({ navigation }) => {
       />
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+        <View style={[styles.content, Platform.OS === 'web' && styles.webContent]}>
 
           {/* ACCOUNT */}
           <Section title="Account">
@@ -165,6 +174,11 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.white },
   container: { flex: 1, backgroundColor: colors.gray[50] },
   content: { padding: spacing.lg },
+  webContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+  },
   section: { marginBottom: spacing.xl },
   sectionTitle: {
     fontSize: typography.fontSize.sm,
@@ -190,7 +204,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.md,
   },
-  textBox: { flex: 1 },
+  textBox: { flex: 1, minWidth: 0 },
   title: {
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.medium,

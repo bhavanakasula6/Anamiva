@@ -18,6 +18,35 @@ import { USER_ROLES } from '../data/constants';
 
 const Stack = createStackNavigator();
 
+const linking = {
+  prefixes: ['http://localhost:8081', 'https://anamiva.app'],
+  config: {
+    screens: {
+      Auth: {
+        screens: {
+          Splash: 'splash',
+          Login: 'login',
+          OTPVerification: 'verify-otp',
+          RoleSelection: 'select-role',
+          PatientProfileSetup: 'patient/setup',
+          DoctorProfileSetup: 'doctor/setup',
+        },
+      },
+      Main: {
+        screens: {
+          Home: '',
+          Appointments: 'appointments',
+          Records: 'records',
+          Medications: 'medications',
+          Emergency: 'emergency',
+          Analytics: 'analytics',
+          Profile: 'profile',
+        },
+      },
+    },
+  },
+};
+
 const RootNavigator = () => {
   const { isAuthenticated, user, loading } = useAuth();
 
@@ -27,7 +56,7 @@ const RootNavigator = () => {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!isAuthenticated ? (
             // Auth Stack

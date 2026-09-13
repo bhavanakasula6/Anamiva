@@ -15,7 +15,7 @@ module.exports = (req, res, next) => {
     // TEMP TOKEN (OTP FLOW)
     if (decoded.isTemp) {
       req.user = {
-        phone: decoded.phone,
+        email: decoded.email,
         isTemp: true
       };
     } 

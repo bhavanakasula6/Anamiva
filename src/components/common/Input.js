@@ -10,6 +10,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import Icon from '../Icon';
 import IconButton from './IconButton';
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
   },
 
   focused: {
-    borderColor: theme.colors.primary[500],
+    borderColor: theme.borders.subtle,
   },
 
   error: {
@@ -194,6 +195,13 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.fontFamily.regular,
     color: theme.colors.text.primary,
     paddingVertical: theme.spacing.sm,
+    ...(Platform.OS === 'web'
+      ? {
+          outlineStyle: 'none',
+          outlineWidth: 0,
+          boxShadow: 'none',
+        }
+      : {}),
   },
 
   inputWithIconLeft: {

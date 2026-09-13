@@ -8,8 +8,10 @@ import {
   View,
   Text,
   FlatList,
+  Platform,
   StyleSheet,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +26,9 @@ import Icon from '../../components/Icon';
 
 const DoctorPatientsScreen = ({ navigation }) => {
   const { loading, getPatientsWithAccess } = useDoctor();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
   const [patients, setPatients] = useState([]);
   const [localLoading, setLocalLoading] = useState(true);
 
@@ -196,7 +201,10 @@ const DoctorPatientsScreen = ({ navigation }) => {
           data={patients}
           keyExtractor={item => item.id}
           renderItem={renderPatient}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, isWeb && styles.webListContent]}
+          numColumns={isTabletUp ? 2 : 1}
+          key={isTabletUp ? 'patients-grid' : 'patients-list'}
+          columnWrapperStyle={isTabletUp && styles.listColumn}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <EmptyState
@@ -228,6 +236,7 @@ const styles = StyleSheet.create({
     color: colors.gray[900],
   },
   card: {
+    flex: 1,
     marginBottom: spacing.md,
     padding: spacing.md,
     ...shadows.sm,
@@ -235,6 +244,15 @@ const styles = StyleSheet.create({
   listContent: {
     padding: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  webListContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
+  listColumn: {
+    gap: spacing.md,
   },
 
   row: {
@@ -263,11 +281,13 @@ const styles = StyleSheet.create({
   info: {
     flex: 1,
     marginLeft: spacing.md,
+    minWidth: 0,
   },
   name: {
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[900],
+    flexShrink: 1,
   },
   meta: {
     fontSize: typography.fontSize.sm,

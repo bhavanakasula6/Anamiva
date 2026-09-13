@@ -7,13 +7,16 @@ import React from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   FlatList,
+  Platform,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { usePatient } from '../../contexts/PatientContext';
+import socketService from '../../services/socketService';
 
 import {
   colors,
@@ -34,12 +37,55 @@ import Icon from '../../components/Icon';
 
 const MedicalRecordsScreen = ({ navigation }) => {
   const { medicalRecords, loadMedicalRecords, loading } = usePatient();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
 
   useFocusEffect(
     React.useCallback(() => {
       loadMedicalRecords();
     }, [])
   );
+
+  React.useEffect(() => {
+    const refreshRecords = () => {
+      loadMedicalRecords();
+    };
+
+    const registerListeners = () => {
+      const socket = socketService.getSocket();
+      if (!socket) return false;
+
+      socket.off('medical-record-created', refreshRecords);
+      socket.off('medical-record-updated', refreshRecords);
+      socket.off('prescription-updated', refreshRecords);
+      socket.off('connect', registerListeners);
+
+      socket.on('medical-record-created', refreshRecords);
+      socket.on('medical-record-updated', refreshRecords);
+      socket.on('prescription-updated', refreshRecords);
+      socket.on('connect', registerListeners);
+
+      return true;
+    };
+
+    if (!registerListeners()) {
+      const interval = setInterval(() => {
+        if (registerListeners()) clearInterval(interval);
+      }, 500);
+      return () => clearInterval(interval);
+    }
+
+    return () => {
+      const socket = socketService.getSocket();
+      if (socket) {
+        socket.off('medical-record-created', refreshRecords);
+        socket.off('medical-record-updated', refreshRecords);
+        socket.off('prescription-updated', refreshRecords);
+        socket.off('connect', registerListeners);
+      }
+    };
+  }, [loadMedicalRecords]);
 
   const getRecordIcon = (type) => {
     switch (type) {
@@ -116,7 +162,10 @@ const MedicalRecordsScreen = ({ navigation }) => {
           data={medicalRecords}
           renderItem={({ item }) => <RecordCard record={item} />}
           keyExtractor={(item) => item._id || item.id || Math.random().toString()}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, isWeb && styles.webListContent]}
+          numColumns={isTabletUp ? 2 : 1}
+          key={isTabletUp ? 'records-grid' : 'records-list'}
+          columnWrapperStyle={isTabletUp && styles.listColumn}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <EmptyState
@@ -153,8 +202,18 @@ const styles = StyleSheet.create({
   listContent: {
     padding: spacing.lg,
   },
+  webListContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
+  listColumn: {
+    gap: spacing.md,
+  },
 
   recordCard: {
+    flex: 1,
     marginBottom: spacing.md,
     padding: spacing.lg,
     ...shadows.sm,
@@ -177,12 +236,14 @@ const styles = StyleSheet.create({
 
   recordInfo: {
     flex: 1,
+    minWidth: 0,
   },
 
   recordTitle: {
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[900],
+    flexShrink: 1,
   },
 
   recordDate: {

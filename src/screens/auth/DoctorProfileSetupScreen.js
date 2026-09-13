@@ -12,19 +12,25 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  useWindowDimensions,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
-import { colors, typography, spacing } from '../../styles/theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../../styles/theme';
 import { Button, Input, DropdownPicker } from '../../components/common';
 import { validateEmail, validateRequired } from '../../utils/validation';
 import { USER_ROLES, SPECIALIZATIONS, GENDERS, INDIAN_STATES, CITIES_BY_STATE } from '../../data/constants';
 import Icon from '../../components/Icon';
 
 const DoctorProfileSetupScreen = ({ navigation, route }) => {
-  const { phone, role } = route.params;
+  const { email = '', role = 'doctor' } = route.params || {};
   const { completeProfile } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isDesktop = width >= 900;
+  const isTabletUp = width >= 768;
+  const isNarrow = width < 560;
 
   const HOUR_OPTIONS = Array.from({ length: 17 }, (_, i) => {
     const h = i + 6;
@@ -68,6 +74,10 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
   }
 };
 
+  const handleBack = () => {
+    navigation.replace('RoleSelection', { email });
+  };
+
   const validate = () => {
     const newErrors = {};
 
@@ -103,7 +113,7 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
     try {
       const profileData = {
         ...formData,
-        phone,
+        email,
         role: USER_ROLES.DOCTOR,
         fullName: `Dr. ${formData.firstName} ${formData.lastName}`,
         phoneVerified: true,
@@ -168,21 +178,39 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
+          style={isWeb && styles.webScroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.content}>
+          <View
+            style={[
+              styles.content,
+              isWeb && styles.webContent,
+              isDesktop && styles.desktopContent,
+            ]}
+          >
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Complete Your Profile</Text>
+              <View style={styles.headerRow}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  activeOpacity={0.8}
+                  onPress={handleBack}
+                >
+                  <Icon name="back" size={20} color={colors.text.primary} />
+                </TouchableOpacity>
+                <View style={styles.headerText}>
+                  <Text style={styles.title}>Complete Your Profile</Text>
+                </View>
+              </View>
               <Text style={styles.subtitle}>
                 Provide your professional information to get started
               </Text>
             </View>
 
             {/* Form */}
-            <View style={styles.form}>
+            <View style={[styles.form, isWeb && isTabletUp && styles.formCard]}>
               {/* Personal Information */}
               <View style={styles.sectionHeader}>
                 <Icon name="personalInfo" size={28} color={colors.primary[500]} />
@@ -327,7 +355,7 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
               />
 
               <Text style={styles.sectionTitle}>Consulting Hours</Text>
-              <View style={styles.hoursRow}>
+              <View style={[styles.hoursRow, isNarrow && styles.hoursRowStack]}>
                 <View style={styles.hourPicker}>
                   <DropdownPicker
                     label="Start Time"
@@ -428,22 +456,57 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray[50],
   },
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray[50],
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  webScroll: {
+    flex: 1,
+    height: '100vh',
+    maxHeight: '100vh',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    backgroundColor: '#F1FBF8',
   },
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
     paddingBottom: spacing['2xl'],
   },
+  webContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+  },
+  desktopContent: {
+    paddingTop: spacing['2xl'],
+  },
   header: {
     marginBottom: spacing.xl,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  headerText: {
+    flex: 1,
   },
   title: {
     fontSize: typography.fontSize['2xl'],
@@ -459,6 +522,14 @@ const styles = StyleSheet.create({
   form: {
     marginTop: spacing.md,
   },
+  formCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    ...shadows.sm,
+  },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -470,7 +541,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
-    color: colors.gray[900],
+    color: colors.text.primary,
     marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
@@ -537,6 +608,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     marginBottom: spacing.md,
+  },
+  hoursRowStack: {
+    flexDirection: 'column',
+    gap: 0,
   },
   hourPicker: {
     flex: 1,

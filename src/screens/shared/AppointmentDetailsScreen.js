@@ -9,8 +9,10 @@ import {
   Text,
   StyleSheet,
   Alert,
+  Platform,
   ScrollView,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -37,9 +39,29 @@ import {
 import { appointmentAPI, medicalRecordAPI } from '../../services/api';
 import socketService from '../../services/socketService';
 
+const getRecordId = (record) => record?._id || record?.id;
+
+const getAppointmentRecordId = (appointment) => appointment?._id || appointment?.id;
+
+const getRecordAppointmentId = (record) => {
+  const appointmentId = record?.appointmentId;
+  return appointmentId?._id || appointmentId?.id || appointmentId;
+};
+
+const normalizePrescriptionResponse = (response) =>
+  response?.prescription ||
+  response?.record ||
+  response?.medicalRecord ||
+  response?.data?.prescription ||
+  response?.data?.record ||
+  null;
+
 const AppointmentDetailsScreen = ({ route, navigation }) => {
-  const { appointmentId, refresh } = route.params;
+  const { appointmentId = '', refresh } = route.params || {};
+  const { width } = useWindowDimensions();
   const { user } = useAuth();
+  const isWeb = Platform.OS === 'web';
+  const isWide = width >= 768;
 
   const role = user?.role;
   const isPatient = role === 'patient';
@@ -80,10 +102,59 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
     const res = await appointmentAPI.getAppointmentById(appointmentId);
     if (res.success) {
       setAppointment(res.appointment);
+      if (res.appointment?.prescription) {
+        setPrescription(res.appointment.prescription);
+      }
     } else {
       Alert.alert('Error', 'Appointment not found');
       navigation.goBack();
     }
+  };
+
+  const loadPrescription = async (appointmentValue = appointment) => {
+    const lookupAppointmentId = getAppointmentRecordId(appointmentValue) || appointmentId;
+    if (!lookupAppointmentId) return null;
+
+    const directResponse = await medicalRecordAPI.getPrescriptionByAppointment(lookupAppointmentId);
+    const directPrescription = normalizePrescriptionResponse(directResponse);
+
+    if (directPrescription) {
+      setPrescription(directPrescription);
+      setAppointment(prev => prev ? {
+        ...prev,
+        prescription: directPrescription,
+        prescriptionId: getRecordId(directPrescription) || prev.prescriptionId,
+      } : prev);
+      return directPrescription;
+    }
+
+    if (!directResponse?.success && appointmentValue?.prescription) {
+      setPrescription(appointmentValue.prescription);
+      return appointmentValue.prescription;
+    }
+
+    const patientId = appointmentValue?.patientId;
+    if (patientId) {
+      const recordsResponse = await medicalRecordAPI.getMedicalRecords(patientId);
+      const records = recordsResponse?.records || [];
+      const fallbackPrescription = records.find(record =>
+        record?.type === 'prescription' &&
+        String(getRecordAppointmentId(record)) === String(lookupAppointmentId)
+      );
+
+      if (fallbackPrescription) {
+        setPrescription(fallbackPrescription);
+        setAppointment(prev => prev ? {
+          ...prev,
+          prescription: fallbackPrescription,
+          prescriptionId: getRecordId(fallbackPrescription) || prev.prescriptionId,
+        } : prev);
+        return fallbackPrescription;
+      }
+    }
+
+    setPrescription(null);
+    return null;
   };
 
   useEffect(() => {
@@ -105,16 +176,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
 
     (async () => {
       setPrescription(null);
-      const res = await medicalRecordAPI.getPrescriptionByAppointment(appointment.id);
-      if (res?.success) {
-        setPrescription(res.prescription);
-        if (res.prescription && !appointment.prescriptionId) {
-          setAppointment(prev => ({
-            ...prev,
-            prescriptionId: res.prescription.id,
-          }));
-        }
-      }
+      await loadPrescription(appointment);
     })();
   }, [appointment?.id, refresh]);
 
@@ -135,13 +197,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
 
     const refreshPrescriptionHandler = async (data) => {
       if (data?.appointmentId && String(data.appointmentId) !== String(appointment.id)) return;
-      const res = await medicalRecordAPI.getPrescriptionByAppointment(appointment.id);
-      if (res?.success) {
-        setPrescription(res.prescription);
-        if (res.prescription) {
-          setAppointment(prev => prev ? { ...prev, prescriptionId: res.prescription.id } : prev);
-        }
-      }
+      await loadPrescription(appointment);
     };
 
     const refreshAccessHandler = async (data) => {
@@ -372,6 +428,15 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
     Alert.alert('Request Sent', 'Your consultation access request has been sent to the patient.');
   };
 
+  const openPatientRecords = () => {
+    navigation.navigate('PatientRecords', {
+      patientId: appointment.patientId,
+      patientName: appointment.patient?.name || 'Patient Records',
+      appointmentId: appointment.id,
+      requestId: doctorAccessStatus?.requestId,
+    });
+  };
+
   if (!user) {
     return <Loading fullScreen text="Signing out..." />;
   }
@@ -379,7 +444,9 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
   if (loading || !appointment) {
     return <Loading fullScreen text="Loading appointment..." />;
   }
-  const canViewPrescription = !!prescription && (isDoctor || isPatient);
+  const visiblePrescription = prescription || appointment?.prescription || null;
+  const canViewPrescription = !!visiblePrescription && (isDoctor || isPatient);
+  const prescriptionRecordId = getRecordId(visiblePrescription) || appointment.prescriptionId;
 
 
   return (
@@ -390,11 +457,15 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
         onLeftPress={() => navigation.goBack()}
         variant="surface"
       />
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={isWeb && styles.webScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.container, isWeb && styles.webContainer]}>
 
           {/* Appointment Info */}
-          <Card style={styles.card}>
+          <Card style={[styles.card, isWide && styles.primaryCard]}>
             <View style={styles.titleRow}>
               <Icon name="calendar" size={18} color={colors.primary[500]} />
               <Text style={styles.title}>Appointment</Text>
@@ -431,12 +502,18 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
 
           </Card>
 
-          {/* Prescription (Patients can only view after consultation is completed) */}
+          {/* Prescription */}
           {canViewPrescription && (
             <Card style={styles.card}>
               <Text style={styles.section}>Prescription</Text>
 
-              {prescription?.medications?.map((med, i) => (
+              {visiblePrescription?.diagnosis ? (
+                <Text style={styles.prescriptionDiagnosis}>
+                  Diagnosis: {visiblePrescription.diagnosis}
+                </Text>
+              ) : null}
+
+              {visiblePrescription?.medications?.length ? visiblePrescription.medications.map((med, i) => (
                 <View key={i} style={styles.prescriptionItem}>
                   <Text style={styles.medName}>{med.name}</Text>
                   <Text style={styles.medSub}>
@@ -446,7 +523,24 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                     Duration: {med.duration}
                   </Text>
                 </View>
-              ))}
+              )) : (
+                <Text style={styles.accessMuted}>Prescription details are available in the full record.</Text>
+              )}
+
+              <Button
+                variant="outline"
+                icon="file-text"
+                fullWidth
+                style={styles.prescriptionRecordButton}
+                onPress={() => navigation.navigate('RecordDetails', {
+                  recordId: prescriptionRecordId,
+                  patientId: appointment.patientId,
+                  mode: isPatient ? 'PATIENT' : 'DOCTOR',
+                  record: visiblePrescription,
+                })}
+              >
+                Open Full Prescription
+              </Button>
             </Card>
           )}
 
@@ -591,12 +685,21 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                       </Text>
                     )}
                     {doctorAccessStatus?.status === ACCESS_STATUS.GRANTED && isUpcoming && (
-                      <View style={styles.accessRow}>
-                        <Icon name="unlock" size={14} color={colors.success[600]} />
-                        <Text style={styles.accessGranted}>
-                          Consultation-only access granted
-                        </Text>
-                      </View>
+                      <>
+                        <View style={styles.accessRow}>
+                          <Icon name="unlock" size={14} color={colors.success[600]} />
+                          <Text style={styles.accessGranted}>
+                            Consultation-only access granted
+                          </Text>
+                        </View>
+                        <Button
+                          variant="outline"
+                          icon="file-text"
+                          onPress={openPatientRecords}
+                        >
+                          Open Patient Records
+                        </Button>
+                      </>
                     )}
 
                     {doctorAccessStatus?.status === ACCESS_STATUS.PENDING && isUpcoming && (
@@ -639,6 +742,13 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                         >
                           Cancel Request
                         </Button>
+                        <Button
+                          variant="outline"
+                          icon="file-text"
+                          onPress={openPatientRecords}
+                        >
+                          Open Patient Records
+                        </Button>
                       </>
                     )}
 
@@ -654,6 +764,13 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                           onPress={requestDoctorAccess}
                         >
                           Request Consultation Access
+                        </Button>
+                        <Button
+                          variant="outline"
+                          icon="file-text"
+                          onPress={openPatientRecords}
+                        >
+                          Open Patient Records
                         </Button>
                       </>
                     )}
@@ -674,11 +791,20 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                       </View>
                     )}
                     {doctorAccessStatus?.status === ACCESS_STATUS.DENIED && isUpcoming && (
-                      <View style={styles.accessRow}>
-                        <Icon name="close" size={14} color={colors.gray[500]} />
-                        <Text style={styles.accessMuted}>Patient denied access to consultation records
-                        </Text>
-                      </View>
+                      <>
+                        <View style={styles.accessRow}>
+                          <Icon name="close" size={14} color={colors.gray[500]} />
+                          <Text style={styles.accessMuted}>Patient denied access to consultation records
+                          </Text>
+                        </View>
+                        <Button
+                          variant="outline"
+                          icon="file-text"
+                          onPress={openPatientRecords}
+                        >
+                          Open Patient Records
+                        </Button>
+                      </>
                     )}
                   </>
                 )}
@@ -755,10 +881,11 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                       onPress={async () => {
                         try {
                           const res = await appointmentAPI.joinCall(appointment.id);
-                          if (res.success) {
+                          const joinedRoomId = res.appointment?.videoCallRoomId || res.videoCallRoomId;
+                          if (res.success && joinedRoomId) {
                             navigation.navigate('VideoCall', {
                               appointmentId: appointment.id,
-                              roomId: res.videoCallRoomId,
+                              roomId: joinedRoomId,
                               isCaller: false,
                               otherPartyName: appointment.doctor?.name || 'Doctor',
                             });
@@ -820,7 +947,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                     });
                   }}
                 >
-                  {appointment.prescriptionId ? 'Edit Prescription' : 'Create Prescription'}
+                  {prescriptionRecordId ? 'Edit Prescription' : 'Create Prescription'}
                 </Button>
               )}
 
@@ -857,7 +984,10 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.white },
   scrollView: { flex: 1, backgroundColor: colors.gray[50] },
   container: { flex: 1, padding: spacing.lg, backgroundColor: colors.gray[50] },
+  webScrollContent: { alignItems: 'center' },
+  webContainer: { width: '100%', maxWidth: 920 },
   card: { marginBottom: spacing.md, padding: spacing.lg, ...shadows.sm, gap: spacing.sm },
+  primaryCard: { padding: spacing.xl },
 
   titleRow: {
     flexDirection: 'row',
@@ -875,6 +1005,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
+    flexWrap: 'wrap',
   },
 
   idLabel: {
@@ -883,6 +1014,7 @@ const styles = StyleSheet.create({
   },
 
   idValue: {
+    flexShrink: 1,
     fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.mono || typography.fontFamily.medium,
     color: colors.gray[800],
@@ -894,14 +1026,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
+    flexWrap: 'wrap',
   },
 
   title: {
+    flexShrink: 1,
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
   },
 
   meta: {
+    flexShrink: 1,
     fontSize: typography.fontSize.sm,
     color: colors.gray[600],
   },
@@ -912,21 +1047,25 @@ const styles = StyleSheet.create({
   },
 
   accessGranted: {
+    flexShrink: 1,
     color: colors.success[600],
     fontSize: typography.fontSize.sm,
   },
 
   accessPending: {
+    flexShrink: 1,
     color: colors.warning[600],
     fontSize: typography.fontSize.sm,
   },
 
   accessDenied: {
+    flexShrink: 1,
     color: colors.danger[500],
     fontSize: typography.fontSize.sm,
   },
 
   accessMuted: {
+    flexShrink: 1,
     color: colors.gray[500],
     fontSize: typography.fontSize.sm,
   },
@@ -936,6 +1075,14 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: 8,
     marginBottom: spacing.sm,
+  },
+  prescriptionDiagnosis: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[700],
+    marginBottom: spacing.sm,
+  },
+  prescriptionRecordButton: {
+    marginTop: spacing.xs,
   },
   medName: {
     fontSize: typography.fontSize.sm,

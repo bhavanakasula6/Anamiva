@@ -5,9 +5,11 @@
 
 import { useEffect, useState } from 'react';
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,7 +35,9 @@ import {
 import Icon from '../../components/Icon';
 
 const DoctorDetailsScreen = ({ route, navigation }) => {
-  const { doctorId } = route.params;
+  const { doctorId = '' } = route.params || {};
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
   const { favorites, getDoctorDetails, toggleFavorite } = usePatient();
 
   const [doctor, setDoctor] = useState(null);
@@ -89,6 +93,7 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
 
       <ScrollView
         style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Avatar */}
@@ -226,17 +231,19 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
 
       {/* Bottom Action */}
       <View style={styles.bottomAction}>
-        <Button
-          fullWidth
-          size="lg"
-          onPress={() =>
-            navigation.navigate('BookAppointment', {
-              doctorId: doctor._id || doctor.id,
-            })
-          }
-        >
-          Book Appointment
-        </Button>
+        <View style={isWeb && styles.bottomActionInner}>
+          <Button
+            fullWidth
+            size="lg"
+            onPress={() =>
+              navigation.navigate('BookAppointment', {
+                doctorId: doctor._id || doctor.id,
+              })
+            }
+          >
+            Book Appointment
+          </Button>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -245,6 +252,12 @@ const DoctorDetailsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.white },
   container: { flex: 1, backgroundColor: colors.gray[50] },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+    paddingBottom: 120,
+  },
 
   avatarSection: {
     alignItems: 'center',
@@ -275,6 +288,7 @@ const styles = StyleSheet.create({
   doctorName: {
     fontSize: typography.fontSize['2xl'],
     fontFamily: typography.fontFamily.bold,
+    textAlign: 'center',
   },
 
   specialization: {
@@ -354,6 +368,7 @@ const styles = StyleSheet.create({
   },
 
   rowText: {
+    flex: 1,
     fontSize: typography.fontSize.sm,
     color: colors.gray[700],
   },
@@ -388,6 +403,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     ...shadows.xl,
+  },
+  bottomActionInner: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
   },
 });
 

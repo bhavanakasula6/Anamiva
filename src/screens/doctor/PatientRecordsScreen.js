@@ -9,7 +9,9 @@ import {
   View,
   Text,
   FlatList,
+  Platform,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,7 +25,10 @@ import { ACCESS_STATUS } from '../../data/constants';
 import Icon from '../../components/Icon';
 
 const PatientRecordsScreen = ({ route, navigation }) => {
-  const { patientId, patientName, appointmentId , requestId} = route.params;
+  const { patientId = '', patientName = 'Patient Records', appointmentId = null, requestId = null } = route.params || {};
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
 
   const {
     getPatientMedicalRecords,
@@ -284,6 +289,7 @@ const PatientRecordsScreen = ({ route, navigation }) => {
         onLeftPress={() => navigation.goBack()}
       />
       <View style={styles.container}>
+        <View style={[styles.content, isWeb && styles.webContent]}>
 
         {renderBanner()}
 
@@ -293,6 +299,9 @@ const PatientRecordsScreen = ({ route, navigation }) => {
             keyExtractor={item => item.id}
             renderItem={renderRecord}
             contentContainerStyle={styles.listContent}
+            numColumns={isTabletUp ? 2 : 1}
+            key={isTabletUp ? 'records-grid' : 'records-list'}
+            columnWrapperStyle={isTabletUp && styles.listColumn}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={
               <EmptyState
@@ -303,6 +312,7 @@ const PatientRecordsScreen = ({ route, navigation }) => {
           />
 
         )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -319,6 +329,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
   },
+  content: {
+    flex: 1,
+    width: '100%',
+  },
+  webContent: {
+    maxWidth: 1180,
+    alignSelf: 'center',
+  },
 
   header: {
     fontSize: typography.fontSize.lg,
@@ -326,6 +344,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   card: {
+    flex: 1,
     marginBottom: spacing.md,
     padding: spacing.lg,
     ...shadows.sm,
@@ -349,6 +368,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: spacing.md,
     paddingBottom: spacing.xl,
+  },
+  listColumn: {
+    gap: spacing.md,
   },
 
   bannerGranted: {

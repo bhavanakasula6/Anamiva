@@ -1,6 +1,6 @@
 /**
  * Login Screen
- * Phone number entry for authentication
+ * Email entry for authentication
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -11,20 +11,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../contexts/AuthContext';
-import { colors, typography, spacing } from '../../styles/theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../../styles/theme';
 import { Button, Input } from '../../components/common';
-import { normalizePhone, validatePhone } from '../../utils/validation';
+import { validateEmail } from '../../utils/validation';
 
 const LoginScreen = ({ navigation }) => {
   const { sendOTP } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const showDesktopInfo = width >= 1180;
+  const isDesktop = width >= 900;
+  const isTabletUp = width >= 768;
+  const isSmall = width < 420;
 
-  const [phone, setPhone] = useState('');
-  const [countryCode] = useState('+91');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [cooldown, setCooldown] = useState(0);
@@ -49,11 +55,12 @@ const LoginScreen = ({ navigation }) => {
   const handleSendOTP = async () => {
     if (loading || requestInFlightRef.current) return; // Prevent duplicate sends
 
-    const normalizedPhone = normalizePhone(phone);
-    setPhone(normalizedPhone);
+    const normalizedEmail = email.trim().toLowerCase();
+    setEmail(normalizedEmail);
 
-    if (!validatePhone(normalizedPhone)) {
-      setErrors({ phone: 'Enter a valid 10-digit phone number' });
+    const emailError = validateEmail(normalizedEmail);
+    if (emailError) {
+      setErrors({ email: emailError });
       return;
     }
 
@@ -62,12 +69,11 @@ const LoginScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const fullPhone = `${countryCode}${normalizedPhone}`;
-      const response = await sendOTP(fullPhone);
+      const response = await sendOTP(normalizedEmail);
 
       if (response?.success) {
         setCooldown(30);
-        navigation.navigate('OTPVerification', { phone: fullPhone });
+        navigation.replace('OTPVerification', { email: normalizedEmail });
       } else {
         Alert.alert('Error', response?.message || 'Failed to send OTP');
       }
@@ -86,15 +92,57 @@ const LoginScreen = ({ navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          style={isWeb && styles.webScroll}
+          contentContainerStyle={[
+            styles.scroll,
+            isWeb && styles.webScrollContent,
+            isWeb && !isTabletUp && styles.mobileScrollContent,
+            isDesktop && styles.desktopScrollContent,
+          ]}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {/* CONTENT */}
-          <View style={styles.content}>
+          <View style={[styles.desktopShell, showDesktopInfo && styles.desktopShellActive]}>
+            {showDesktopInfo && (
+              <View style={styles.infoPanel}>
+                <Text style={styles.infoEyebrow}>Anamiva Care</Text>
+                <Text style={styles.infoTitle}>One place for appointments, records, and urgent care.</Text>
+                <Text style={styles.infoText}>
+                  Sign in once to continue as a patient or doctor and manage your healthcare workflow securely.
+                </Text>
+
+                <View style={styles.infoList}>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoItemTitle}>Fast access</Text>
+                    <Text style={styles.infoItemText}>OTP login keeps sign-in quick without passwords.</Text>
+                  </View>
+                  <View style={styles.infoItem}>
+                    <Text style={styles.infoItemTitle}>Care continuity</Text>
+                    <Text style={styles.infoItemText}>Appointments, records, and emergency flows stay connected.</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            <View style={[
+              styles.content,
+              isWeb && !isTabletUp && styles.mobileWebContent,
+              isWeb && isTabletUp && styles.responsiveCard,
+              showDesktopInfo && styles.desktopContent,
+            ]}>
             {/* Logo */}
             <View style={styles.logoWrapper}>
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>M</Text>
+              <View style={[
+                styles.logoCircle,
+                isSmall && styles.logoCircleSmall,
+                isDesktop && styles.logoCircleDesktop,
+              ]}>
+                <Text style={[
+                  styles.logoText,
+                  isSmall && styles.logoTextSmall,
+                  isDesktop && styles.logoTextDesktop,
+                ]}>A</Text>
                 {/* <Image
                   source={require('../../assets/logo.png')}
                   style={{ width: 56, height: 56, resizeMode: 'contain' }}
@@ -104,33 +152,34 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>Welcome to MedApp</Text>
+            <Text style={[
+              styles.title,
+              isSmall && styles.titleSmall,
+              isDesktop && styles.titleDesktop,
+            ]}>Welcome to Anamiva</Text>
             <Text style={styles.subtitle}>
-              Enter your phone number to continue
+              Sign in securely with your email address
             </Text>
 
             {/* Form */}
-            <View style={styles.form}>
-              <Text style={styles.label}>Phone Number</Text>
+            <View style={[styles.form, isWeb && styles.webForm]}>
+              <Text style={styles.label}>Email Address</Text>
 
               <View style={styles.phoneRow}>
-                <View style={styles.countryCodeBox}>
-                  <Text style={styles.countryCode}>{countryCode}</Text>
-                </View>
-
                 <View style={styles.phoneInputContainer}>
                   <Input
-                    value={phone}
+                    value={email}
                     onChangeText={text => {
-                      setPhone(normalizePhone(text));
+                      setEmail(text.toLowerCase());
                       setErrors({});
                     }}
-                    placeholder="10-digit mobile number"
-                    keyboardType="phone-pad"
-                    textContentType="telephoneNumber"
-                    autoComplete="tel"
-                    maxLength={20}
-                    error={errors.phone}
+                    placeholder="you@example.com"
+                    keyboardType="email-address"
+                    textContentType="emailAddress"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    maxLength={120}
+                    error={errors.email}
                     style={styles.phoneInput}
                   />
                 </View>
@@ -140,7 +189,7 @@ const LoginScreen = ({ navigation }) => {
                 fullWidth
                 size="md"
                 loading={loading}
-                disabled={!validatePhone(phone) || cooldown > 0 || loading}
+                disabled={Boolean(validateEmail(email.trim())) || cooldown > 0 || loading}
                 onPress={handleSendOTP}
                 style={styles.button}
               >
@@ -148,13 +197,47 @@ const LoginScreen = ({ navigation }) => {
               </Button>
 
               <Text style={styles.helperText}>
-                We’ll send a one-time password for verification
+                We will send a one-time password for verification
               </Text>
+              <View style={styles.securityNote}>
+                <Text style={styles.securityTitle}>Secure OTP login</Text>
+                <Text style={styles.securityText}>
+                  No password needed. Your care workspace opens after email verification.
+                </Text>
+              </View>
             </View>
+            </View>
+
+            {showDesktopInfo && (
+              <View style={styles.sidePanel}>
+                <Text style={styles.sideTitle}>After verification</Text>
+                <View style={styles.sideStep}>
+                  <Text style={styles.sideStepNumber}>1</Text>
+                  <View style={styles.sideStepTextWrap}>
+                    <Text style={styles.sideStepTitle}>Choose your role</Text>
+                    <Text style={styles.sideStepText}>Continue as patient or doctor.</Text>
+                  </View>
+                </View>
+                <View style={styles.sideStep}>
+                  <Text style={styles.sideStepNumber}>2</Text>
+                  <View style={styles.sideStepTextWrap}>
+                    <Text style={styles.sideStepTitle}>Complete profile</Text>
+                    <Text style={styles.sideStepText}>Add only the details needed for care.</Text>
+                  </View>
+                </View>
+                <View style={styles.sideStep}>
+                  <Text style={styles.sideStepNumber}>3</Text>
+                  <View style={styles.sideStepTextWrap}>
+                    <Text style={styles.sideStepTitle}>Open dashboard</Text>
+                    <Text style={styles.sideStepText}>Book, review, respond, or manage records.</Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* FOOTER */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, isWeb && styles.webFooter]}>
             <Text style={styles.footerText}>
               By continuing, you agree to our Terms & Privacy Policy
             </Text>
@@ -181,15 +264,180 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'space-between',
   },
+  webScroll: {
+    flex: 1,
+    height: '100vh',
+    maxHeight: '100vh',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    backgroundColor: '#F1FBF8',
+  },
+  webScrollContent: {
+    minHeight: '100vh',
+    paddingVertical: spacing.xl,
+    paddingBottom: spacing['3xl'],
+    justifyContent: 'center',
+    backgroundColor: '#F1FBF8',
+  },
+  mobileScrollContent: {
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  desktopScrollContent: {
+    paddingHorizontal: spacing.xl,
+  },
+  desktopShell: {
+    width: '100%',
+  },
+  desktopShellActive: {
+    maxWidth: 1180,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.lg,
+  },
+  infoPanel: {
+    width: 360,
+    flexShrink: 1,
+    padding: spacing.xl,
+  },
+  infoEyebrow: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.semiBold,
+    color: colors.primary[700],
+    marginBottom: spacing.md,
+  },
+  infoTitle: {
+    fontSize: typography.fontSize['3xl'],
+    lineHeight: 38,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  infoText: {
+    fontSize: typography.fontSize.base,
+    lineHeight: 26,
+    color: colors.text.secondary,
+  },
+  infoList: {
+    marginTop: spacing['2xl'],
+    gap: spacing.md,
+  },
+  infoItem: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  infoItemTitle: {
+    fontSize: typography.fontSize.base,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  infoItemText: {
+    fontSize: typography.fontSize.sm,
+    lineHeight: 20,
+    color: colors.text.secondary,
+  },
 
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing['3xl'],
   },
+  mobileWebContent: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
+    boxSizing: 'border-box',
+  },
+  webContent: {
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
+  responsiveCard: {
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    ...shadows.sm,
+  },
+  desktopContent: {
+    width: 440,
+    minWidth: 440,
+    flexShrink: 0,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.lg,
+    padding: spacing['2xl'],
+    ...shadows.md,
+  },
+  sidePanel: {
+    width: 360,
+    flexShrink: 1,
+    padding: spacing.xl,
+    borderRadius: borderRadius.lg,
+    backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+  },
+  sideTitle: {
+    fontSize: typography.fontSize.lg,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary[900],
+    marginBottom: spacing.lg,
+  },
+  sideStep: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  sideStepNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    overflow: 'hidden',
+    textAlign: 'center',
+    lineHeight: 28,
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.white,
+    backgroundColor: colors.primary[500],
+  },
+  sideStepTextWrap: {
+    flex: 1,
+  },
+  sideStepTitle: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.bold,
+    color: colors.primary[900],
+    marginBottom: 2,
+  },
+  sideStepText: {
+    fontSize: typography.fontSize.sm,
+    lineHeight: 20,
+    color: colors.gray[700],
+  },
 
   logoWrapper: {
     alignItems: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
 
   logoCircle: {
@@ -197,8 +445,20 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 48,
     backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[100],
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  logoCircleSmall: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  logoCircleDesktop: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
   },
 
   logoText: {
@@ -206,23 +466,39 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.bold,
     color: colors.primary[500],
   },
+  logoTextSmall: {
+    fontSize: 32,
+  },
+  logoTextDesktop: {
+    fontSize: 38,
+  },
 
   title: {
     fontSize: typography.fontSize['3xl'],
     fontFamily: typography.fontFamily.bold,
-    color: colors.gray[900],
+    color: colors.text.primary,
     textAlign: 'center',
     marginBottom: spacing.sm,
+  },
+  titleSmall: {
+    fontSize: typography.fontSize['2xl'],
+  },
+  titleDesktop: {
+    fontSize: typography.fontSize['3xl'],
   },
 
   subtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.gray[600],
+    lineHeight: 24,
+    color: colors.text.secondary,
     textAlign: 'center',
   },
 
   form: {
-    marginTop: spacing['2xl'],
+    marginTop: spacing.xl,
+  },
+  webForm: {
+    width: '100%',
   },
 
   label: {
@@ -240,8 +516,10 @@ const styles = StyleSheet.create({
   countryCodeBox: {
     paddingHorizontal: spacing.md,
     height: 48,
-    borderRadius: 10,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.gray[100],
+    borderWidth: 1,
+    borderColor: colors.gray[200],
     justifyContent: 'center',
   },
   countryCode: {
@@ -251,9 +529,11 @@ const styles = StyleSheet.create({
   },
   phoneInputContainer: {
     flex: 1,
+    minWidth: 0,
   },
   phoneInput: {
     marginBottom: 0,
+    minWidth: 0,
   },
   button: {
     marginTop: spacing.xl,
@@ -264,9 +544,35 @@ const styles = StyleSheet.create({
     color: colors.gray[500],
     textAlign: 'center',
   },
+  securityNote: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+  },
+  securityTitle: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.semiBold,
+    color: colors.primary[800],
+    marginBottom: spacing.xs,
+  },
+  securityText: {
+    fontSize: typography.fontSize.sm,
+    lineHeight: 20,
+    color: colors.gray[700],
+  },
   footer: {
     paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
+    padding: spacing.xl,
+  },
+  webFooter: {
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    paddingBottom: spacing.lg,
+    marginTop: spacing.sm,
   },
   footerText: {
     fontSize: typography.fontSize.xs,

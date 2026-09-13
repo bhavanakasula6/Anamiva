@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -9,6 +9,9 @@ import { useDoctor } from '../../contexts/DoctorContext';
 import { borderRadius, colors, shadows, spacing, typography } from '../../styles/theme';
 
 const EmergencyListScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
   const {
     emergencyRequests,
     activeEmergency,
@@ -135,7 +138,7 @@ const EmergencyListScreen = ({ navigation }) => {
     const requestId = request._id || request.id;
 
     return (
-      <Card style={styles.requestCard}>
+      <Card style={[styles.requestCard, isTabletUp && styles.requestCardWide]}>
         {/* Urgency Badge */}
         <View style={styles.urgencyBadge}>
           <View
@@ -214,6 +217,7 @@ const EmergencyListScreen = ({ navigation }) => {
       />
       <ScrollView
         style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -285,9 +289,11 @@ const EmergencyListScreen = ({ navigation }) => {
 
           {/* Emergency Requests */}
           {emergencyRequests?.length > 0 ? (
-            emergencyRequests.map(request => (
-              <EmergencyCard key={request._id || request.id} request={request} />
-            ))
+            <View style={[styles.requestGrid, isTabletUp && styles.requestGridWide]}>
+              {emergencyRequests.map(request => (
+                <EmergencyCard key={request._id || request.id} request={request} />
+              ))}
+            </View>
           ) : (
             !activeEmergency && (
               <EmptyState
@@ -318,8 +324,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.gray[50],
   },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
   content: {
     padding: spacing.lg,
+  },
+  requestGrid: {
+    width: '100%',
+  },
+  requestGridWide: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
   },
   infoBanner: {
     flexDirection: 'row',
@@ -345,6 +365,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     padding: spacing.lg,
     ...shadows.md,
+  },
+  requestCardWide: {
+    flexBasis: 360,
+    flexGrow: 1,
   },
   urgencyBadge: {
     flexDirection: 'row',
@@ -375,6 +399,7 @@ const styles = StyleSheet.create({
   patientInfo: {
     flex: 1,
     marginLeft: spacing.md,
+    minWidth: 0,
   },
   patientName: {
     fontSize: typography.fontSize.base,

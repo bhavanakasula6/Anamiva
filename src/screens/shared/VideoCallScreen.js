@@ -24,15 +24,17 @@ import { colors, typography, spacing } from '../../styles/theme';
 let RTCPeerConnection, RTCView, mediaDevices, InCallManager;
 let isNativeAvailable = false;
 
-try {
-  const webrtc = require('react-native-webrtc');
-  RTCPeerConnection = webrtc.RTCPeerConnection;
-  RTCView = webrtc.RTCView;
-  mediaDevices = webrtc.mediaDevices;
-  InCallManager = require('react-native-incall-manager').default;
-  isNativeAvailable = true;
-} catch (e) {
-  // Native modules not available (Expo Go)
+if (Platform.OS !== 'web') {
+  try {
+    const webrtc = require('react-native-webrtc');
+    RTCPeerConnection = webrtc.RTCPeerConnection;
+    RTCView = webrtc.RTCView;
+    mediaDevices = webrtc.mediaDevices;
+    InCallManager = require('react-native-incall-manager').default;
+    isNativeAvailable = true;
+  } catch (_e) {
+    // Native modules not available (Expo Go/development build missing native deps)
+  }
 }
 
 const ICE_SERVERS = {
@@ -52,37 +54,34 @@ const ICE_SERVERS = {
   ],
 };
 
-const VideoCallScreen = ({ route, navigation }) => {
-  // Fallback for Expo Go (native modules unavailable)
-  if (!isNativeAvailable) {
-    return (
-      <SafeAreaView style={styles.fallbackContainer}>
-        <Header
-          title="Video Call"
-          leftIcon="back"
-          onLeftPress={() => navigation.goBack()}
-          variant="surface"
-        />
-        <View style={styles.fallbackContent}>
-          <Icon name="video" size={48} color={colors.gray[400]} />
-          <Text style={styles.fallbackTitle}>Video Calls Unavailable</Text>
-          <Text style={styles.fallbackText}>
-            Video calls require a development build.{'\n'}
-            Run: npx expo prebuild{'\n'}
-            Then: npx expo run:ios
-          </Text>
-          <Button onPress={() => navigation.goBack()}>Go Back</Button>
-        </View>
-      </SafeAreaView>
-    );
-  }
+const VideoCallFallback = ({ navigation }) => (
+  <SafeAreaView style={styles.fallbackContainer}>
+    <Header
+      title="Video Call"
+      leftIcon="back"
+      onLeftPress={() => navigation.goBack()}
+      variant="surface"
+    />
+    <View style={styles.fallbackContent}>
+      <Icon name="video" size={48} color={colors.gray[400]} />
+      <Text style={styles.fallbackTitle}>Video Calls Unavailable</Text>
+      <Text style={styles.fallbackText}>
+        {Platform.OS === 'web'
+          ? 'Video calls need a browser WebRTC implementation. This screen is parked until the web video-call flow is wired.'
+          : 'Video calls require a development build.\nRun: npx expo prebuild\nThen: npx expo run:ios'}
+      </Text>
+      <Button onPress={() => navigation.goBack()}>Go Back</Button>
+    </View>
+  </SafeAreaView>
+);
 
+const NativeVideoCallScreen = ({ route, navigation }) => {
   const {
-    appointmentId,
-    roomId,
-    isCaller,       // true for doctor (starts call), false for patient (joins)
-    otherPartyName,
-  } = route.params;
+    appointmentId = '',
+    roomId = '',
+    isCaller = false,       // true for doctor (starts call), false for patient (joins)
+    otherPartyName = 'Participant',
+  } = route.params || {};
 
   // State
   const [localStream, setLocalStream] = useState(null);
@@ -658,5 +657,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
 });
+
+const VideoCallScreen = (props) => {
+  if (!isNativeAvailable) {
+    return <VideoCallFallback navigation={props.navigation} />;
+  }
+
+  return <NativeVideoCallScreen {...props} />;
+};
 
 export default VideoCallScreen;

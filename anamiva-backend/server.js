@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const http = require("http");
 const mongoose = require("mongoose");
+const User = require("./models/user");
 const app = require("./app");
 const { initSocket } = require("./sockets/socket");
 
@@ -17,6 +18,24 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
+  })
+  .then(async () => {
+    await User.collection.updateMany(
+      { phoneNumber: null },
+      { $unset: { phoneNumber: "" } }
+    );
+
+    const indexes = await User.collection.indexes();
+    const phoneIndex = indexes.find(index => index.name === "phoneNumber_1");
+    if (phoneIndex && !phoneIndex.sparse) {
+      await User.collection.dropIndex("phoneNumber_1");
+    }
+
+    await User.collection.createIndex(
+      { phoneNumber: 1 },
+      { name: "phoneNumber_1", unique: true, sparse: true }
+    );
+    console.log("User phone index ready");
   })
   .catch((err) => {
     console.error("❌ MongoDB connection failed:", err.message);

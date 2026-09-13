@@ -65,6 +65,8 @@ const AppointmentsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="DoctorAppointmentsList" component={DoctorAppointmentsScreen} />
     <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
+    <Stack.Screen name="PatientRecords" component={PatientRecordsScreen} />
+    <Stack.Screen name="RecordDetails" component={RecordDetailsScreen} />
     <Stack.Screen name="PrescriptionForm" component={PrescriptionFormScreen} />
     <Stack.Screen name="VideoCall" component={VideoCallScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />

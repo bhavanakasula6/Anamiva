@@ -79,6 +79,8 @@ export const DoctorProvider = ({ children }) => {
       loadNotifications();
     };
 
+    const handleNotificationCreated = () => loadNotifications();
+
     const handleAppointmentUpdated = () => {
       loadAppointments();
       loadNotifications();
@@ -125,6 +127,7 @@ export const DoctorProvider = ({ children }) => {
       sock.off('access-request-denied', handleAccessRequestDenied);
       sock.off('access-request-updated', handleAccessRequestUpdated);
       sock.off('appointment-booked', handleAppointmentBooked);
+      sock.off('notification-created', handleNotificationCreated);
       sock.off('appointment-updated', handleAppointmentUpdated);
       sock.off('medical-record-created', handleMedicalRecordCreated);
       sock.off('medical-record-updated', handleMedicalRecordUpdated);
@@ -138,6 +141,7 @@ export const DoctorProvider = ({ children }) => {
       sock.on('access-request-denied', handleAccessRequestDenied);
       sock.on('access-request-updated', handleAccessRequestUpdated);
       sock.on('appointment-booked', handleAppointmentBooked);
+      sock.on('notification-created', handleNotificationCreated);
       sock.on('appointment-updated', handleAppointmentUpdated);
       sock.on('medical-record-created', handleMedicalRecordCreated);
       sock.on('medical-record-updated', handleMedicalRecordUpdated);
@@ -170,6 +174,7 @@ export const DoctorProvider = ({ children }) => {
         sock.off('access-request-denied', handleAccessRequestDenied);
         sock.off('access-request-updated', handleAccessRequestUpdated);
         sock.off('appointment-booked', handleAppointmentBooked);
+        sock.off('notification-created', handleNotificationCreated);
         sock.off('appointment-updated', handleAppointmentUpdated);
         sock.off('medical-record-created', handleMedicalRecordCreated);
         sock.off('medical-record-updated', handleMedicalRecordUpdated);
@@ -253,7 +258,7 @@ export const DoctorProvider = ({ children }) => {
 
   const createPrescription = async (
     appointmentId,
-    { medications, diagnosis, notes }
+    { medications, diagnosis, notes, recordDate }
   ) => {
     try {
       const appointment = appointments.find(a => a.id === appointmentId);
@@ -272,7 +277,7 @@ export const DoctorProvider = ({ children }) => {
 
       const response = await appointmentAPI.createPrescription(
         appointmentId,
-        { medications, diagnosis, notes }
+        { medications, diagnosis, notes, recordDate }
       );
 
       if (response.success) {
@@ -485,7 +490,10 @@ export const DoctorProvider = ({ children }) => {
     try {
       const response = await notificationAPI.getNotifications();
       if (response.success) {
-        setNotifications(response.notifications);
+        setNotifications((response.notifications || []).map(notification => ({
+          ...notification,
+          id: notification.id || notification._id,
+        })));
       }
       return response;
     } catch (error) {
@@ -499,7 +507,9 @@ export const DoctorProvider = ({ children }) => {
       const response = await notificationAPI.markAsRead(notificationId);
       if (response.success) {
         setNotifications(prev =>
-          prev.map(notif => notif.id === notificationId ? { ...notif, read: true } : notif)
+          prev.map(notif => String(notif.id || notif._id) === String(notificationId)
+            ? { ...notif, read: true }
+            : notif)
         );
       }
       return response;

@@ -10,6 +10,9 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
+  Platform,
+  useWindowDimensions,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,12 +23,18 @@ import {
   typography,
   spacing,
   borderRadius,
+  shadows,
 } from '../../styles/theme';
 import { Button } from '../../components/common';
 
 const OTPVerificationScreen = ({ navigation, route }) => {
-  const { phone } = route.params;
+  const { email = '' } = route.params || {};
   const { verifyOTP, sendOTP } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isDesktop = width >= 900;
+  const isTabletUp = width >= 768;
+  const isSmall = width < 420;
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -45,14 +54,21 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
   /* ---------- OTP INPUT ---------- */
   const handleOtpChange = (index, value) => {
-    if (value && !/^\d+$/.test(value)) return;
+    const digits = String(value || '').replace(/\D/g, '').slice(0, 6 - index);
+    if (value && !digits) return;
 
     const newOtp = [...otp];
-    newOtp[index] = value;
+    if (digits.length > 1) {
+      digits.split('').forEach((digit, offset) => {
+        newOtp[index + offset] = digit;
+      });
+    } else {
+      newOtp[index] = digits;
+    }
     setOtp(newOtp);
 
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+    if (digits && index < 5) {
+      inputRefs.current[Math.min(index + digits.length, 5)]?.focus();
     }
   };
 
@@ -73,11 +89,11 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      const res = await verifyOTP(phone, code);
+      const res = await verifyOTP(email, code);
 
       if (res?.success) {
         if (res.isNewUser) {
-          navigation.replace('RoleSelection', { phone });
+          navigation.replace('RoleSelection', { email });
         }
         // For existing users: AuthContext.login() sets isAuthenticated=true,
         // RootNavigator auto-switches to Main. No manual navigation needed.
@@ -98,7 +114,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     if (!canResend) return;
 
     try {
-      const res = await sendOTP(phone);
+      const res = await sendOTP(email);
       if (res?.success) {
         setOtp(['', '', '', '', '', '']);
         setResendTimer(30);
@@ -116,22 +132,42 @@ const OTPVerificationScreen = ({ navigation, route }) => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <View style={styles.content}>
+        <ScrollView
+          style={isWeb && styles.webScroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isWeb && styles.webScrollContent,
+            isWeb && !isTabletUp && styles.mobileScrollContent,
+            isDesktop && styles.desktopScrollContent,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+        <View style={[
+          styles.content,
+          isWeb && styles.webContent,
+          isWeb && !isTabletUp && styles.mobileWebContent,
+          isDesktop && styles.desktopContent,
+        ]}>
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>OTP</Text>
+            <View style={[
+              styles.iconCircle,
+              isSmall && styles.iconCircleSmall,
+              isDesktop && styles.iconCircleDesktop,
+            ]}>
+              <Text style={[styles.iconText, isSmall && styles.iconTextSmall]}>OTP</Text>
             </View>
 
-            <Text style={styles.title}>Verify your number</Text>
+            <Text style={[styles.title, isSmall && styles.titleSmall]}>Verify your email</Text>
             <Text style={styles.subtitle}>
               Enter the 6-digit code sent to
             </Text>
-            <Text style={styles.phone}>{phone}</Text>
+            <Text style={styles.phone}>{email}</Text>
           </View>
 
           {/* OTP INPUT */}
-          <View style={styles.otpRow}>
+          <View style={[styles.otpRow, isSmall && styles.otpRowSmall]}>
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
@@ -143,10 +179,10 @@ const OTPVerificationScreen = ({ navigation, route }) => {
                 }
                 style={[
                   styles.otpInput,
+                  isSmall && styles.otpInputSmall,
                   digit && styles.otpFilled,
                 ]}
                 keyboardType="number-pad"
-                maxLength={1}
                 selectTextOnFocus
               />
             ))}
@@ -167,7 +203,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
           {/* RESEND */}
           <View style={styles.resendRow}>
             <Text style={styles.resendText}>
-              Didn’t receive the code?
+              {"Didn't receive the code?"}
             </Text>
 
             <TouchableOpacity
@@ -188,13 +224,14 @@ const OTPVerificationScreen = ({ navigation, route }) => {
           {/* CHANGE NUMBER */}
           <TouchableOpacity
             style={styles.changeButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.replace('Login')}
           >
             <Text style={styles.changeText}>
-              Change phone number
+              Change email address
             </Text>
           </TouchableOpacity>
         </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -211,16 +248,70 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  webScroll: {
+    flex: 1,
+    height: '100vh',
+    maxHeight: '100vh',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    backgroundColor: '#F1FBF8',
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  webScrollContent: {
+    minHeight: '100vh',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    paddingBottom: spacing['3xl'],
+    paddingHorizontal: spacing.xl,
+  },
+  mobileScrollContent: {
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xl,
+  },
+  desktopScrollContent: {
+    paddingHorizontal: spacing.xl,
+  },
 
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing['3xl'],
+  },
+  webContent: {
+    flexGrow: 0,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
+  mobileWebContent: {
+    flexGrow: 0,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    boxSizing: 'border-box',
+  },
+  desktopContent: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.lg,
+    padding: spacing['2xl'],
+    ...shadows.md,
   },
 
   header: {
     alignItems: 'center',
-    marginBottom: spacing['2xl'],
+    marginBottom: spacing.xl,
   },
 
   iconCircle: {
@@ -228,9 +319,21 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[100],
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
+  },
+  iconCircleSmall: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  iconCircleDesktop: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
   },
 
   iconText: {
@@ -239,17 +342,25 @@ const styles = StyleSheet.create({
     color: colors.primary[500],
     letterSpacing: 1,
   },
+  iconTextSmall: {
+    fontSize: typography.fontSize.base,
+  },
 
   title: {
     fontSize: typography.fontSize['3xl'],
     fontFamily: typography.fontFamily.bold,
-    color: colors.gray[900],
+    color: colors.text.primary,
     marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
+  titleSmall: {
+    fontSize: typography.fontSize['2xl'],
   },
 
   subtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.gray[600],
+    color: colors.text.secondary,
+    textAlign: 'center',
   },
 
   phone: {
@@ -261,8 +372,12 @@ const styles = StyleSheet.create({
 
   otpRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  otpRowSmall: {
+    gap: spacing.xs,
   },
 
   otpInput: {
@@ -276,6 +391,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: colors.gray[900],
     backgroundColor: colors.white,
+    outlineStyle: 'none',
+    outlineWidth: 0,
+    boxShadow: 'none',
+  },
+  otpInputSmall: {
+    width: 36,
+    height: 48,
+    fontSize: typography.fontSize.lg,
   },
 
   otpFilled: {
@@ -301,6 +424,7 @@ const styles = StyleSheet.create({
 
   resendRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
     gap: spacing.xs,
     marginBottom: spacing.md,
@@ -309,6 +433,7 @@ const styles = StyleSheet.create({
   resendText: {
     fontSize: typography.fontSize.sm,
     color: colors.gray[600],
+    textAlign: 'center',
   },
 
   resendLink: {

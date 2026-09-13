@@ -69,6 +69,7 @@ const AppointmentsStack = () => (
     <Stack.Screen name="DoctorSearch" component={DoctorSearchScreen} />
     <Stack.Screen name="BookAppointment" component={BookAppointmentScreen} />
     <Stack.Screen name="AppointmentDetails" component={AppointmentDetailsScreen} />
+    <Stack.Screen name="RecordDetails" component={RecordDetailsScreen} />
     <Stack.Screen name="VideoCall" component={VideoCallScreen} />
   </Stack.Navigator>
 );

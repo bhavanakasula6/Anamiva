@@ -10,6 +10,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,8 +28,12 @@ import { USER_ROLES } from '../../data/constants';
 import Icon from '../../components/Icon';
 
 const RoleSelectionScreen = ({ navigation, route }) => {
-  const { phone } = route.params;
+  const { email = '' } = route.params || {};
   const { selectRole } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isDesktop = width >= 900;
+  const isTabletUp = width >= 700;
 
   const [selectedRole, setSelectedRole] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -66,16 +72,16 @@ const RoleSelectionScreen = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      await selectRole(phone, selectedRole);
+      await selectRole(email, selectedRole);
 
       if (selectedRole === USER_ROLES.PATIENT) {
         navigation.replace('PatientProfileSetup', {
-          phone,
+          email,
           role: selectedRole,
         });
       } else {
         navigation.replace('DoctorProfileSetup', {
-          phone,
+          email,
           role: selectedRole,
         });
       }
@@ -86,25 +92,31 @@ const RoleSelectionScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <View style={styles.container}>
+      <View style={[styles.container, isWeb && styles.webContainer]}>
         <ScrollView
+          style={isWeb && styles.webScroll}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isWeb && styles.webScrollContent,
+            isDesktop && styles.desktopScrollContent,
+          ]}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, isWeb && styles.webHeader]}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>ROLE</Text>
             </View>
 
-            <Text style={styles.title}>Choose how you’ll use MedApp</Text>
+            <Text style={[styles.title, isWeb && styles.webTitle]}>Choose how you will use Anamiva</Text>
             <Text style={styles.subtitle}>
               Select the role that best describes you
             </Text>
           </View>
 
           {/* Role Cards */}
-          <View style={styles.cards}>
+          <View style={[styles.cards, isTabletUp && styles.cardsTablet]}>
             {roles.map(role => {
               const selected = selectedRole === role.id;
 
@@ -115,6 +127,7 @@ const RoleSelectionScreen = ({ navigation, route }) => {
                   onPress={() => setSelectedRole(role.id)}
                   style={[
                     styles.card,
+                    isTabletUp && styles.cardTablet,
                     selected && styles.cardSelected,
                   ]}
                 >
@@ -170,17 +183,18 @@ const RoleSelectionScreen = ({ navigation, route }) => {
           </View>
         </ScrollView>
 
-        {/* Bottom Action */}
-        <View style={styles.footer}>
-          <Button
-            fullWidth
-            size="md"
-            loading={loading}
-            disabled={!selectedRole}
-            onPress={handleContinue}
-          >
-            Continue
-          </Button>
+        <View style={[styles.footer, isWeb && styles.webFooter]}>
+          <View style={isWeb && styles.footerInner}>
+            <Button
+              fullWidth
+              size="md"
+              loading={loading}
+              disabled={!selectedRole}
+              onPress={handleContinue}
+            >
+              Continue
+            </Button>
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -199,20 +213,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.white,
   },
-
+  webContainer: {
+    backgroundColor: '#F1FBF8',
+    height: '100vh',
+    maxHeight: '100vh',
+    overflow: 'hidden',
+  },
+  webScroll: {
+    flex: 1,
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+  },
   scrollContent: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing['3xl'],
-    paddingBottom: spacing.md,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
+  },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+    paddingBottom: spacing['3xl'],
+  },
+  desktopScrollContent: {
+    paddingTop: spacing.xl,
   },
 
   header: {
     marginBottom: spacing['2xl'],
   },
+  webHeader: {
+    alignItems: 'center',
+  },
 
   badge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.primary[50],
+    borderWidth: 1,
+    borderColor: colors.primary[100],
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
@@ -229,17 +267,24 @@ const styles = StyleSheet.create({
   title: {
     fontSize: typography.fontSize['3xl'],
     fontFamily: typography.fontFamily.bold,
-    color: colors.gray[900],
+    color: colors.text.primary,
     marginBottom: spacing.sm,
+  },
+  webTitle: {
+    textAlign: 'center',
   },
 
   subtitle: {
     fontSize: typography.fontSize.base,
-    color: colors.gray[600],
+    color: colors.text.secondary,
   },
 
   cards: {
     gap: spacing.lg,
+  },
+  cardsTablet: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
   },
 
   card: {
@@ -250,10 +295,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     ...shadows.sm,
   },
+  cardTablet: {
+    flex: 1,
+  },
 
   cardSelected: {
     borderColor: colors.primary[500],
     backgroundColor: colors.primary[50],
+    ...shadows.md,
   },
 
   cardHeader: {
@@ -266,7 +315,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: typography.fontSize.xl,
     fontFamily: typography.fontFamily.bold,
-    color: colors.gray[900],
+    color: colors.text.primary,
   },
 
   cardSubtitle: {
@@ -327,6 +376,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.gray[200],
     backgroundColor: colors.white,
+  },
+  webFooter: {
+    backgroundColor: '#F1FBF8',
+  },
+  footerInner: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
   },
 });
 

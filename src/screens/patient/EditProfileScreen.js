@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -22,6 +23,7 @@ import {
   spacing,
   typography,
   borderRadius,
+  shadows,
 } from '../../styles/theme';
 
 import {
@@ -39,6 +41,9 @@ import { authAPI } from '../../services/api';
 
 const EditProfileScreen = ({ navigation }) => {
   const { user, updateProfile, refreshUser } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
 
   const [formData, setFormData] = useState({
     firstName: user?.firstName || user?.name?.split(' ')[0] || '',
@@ -65,7 +70,7 @@ const EditProfileScreen = ({ navigation }) => {
       if (!result.cancelled && result.uri) {
         setAvatarUri(result.uri);
         // Upload to server immediately
-        const uploadRes = await authAPI.uploadAvatar(result.uri);
+        const uploadRes = await authAPI.uploadAvatar(result);
         if (uploadRes.success) {
           setAvatarUri(uploadRes.avatarUrl);
           if (refreshUser) refreshUser();
@@ -125,6 +130,18 @@ const EditProfileScreen = ({ navigation }) => {
     }
   };
 
+  const openDatePicker = () => {
+    if (Platform.OS === 'web') {
+      const value = window.prompt('Enter date of birth (DD/MM/YYYY)', formData.dateOfBirth || '');
+      if (value) {
+        setFormData({ ...formData, dateOfBirth: value });
+      }
+      return;
+    }
+
+    setShowDatePicker(true);
+  };
+
   // Parse current DOB string to a Date object for the picker
   const parseDOB = () => {
     if (!formData.dateOfBirth) return new Date(2000, 0, 1);
@@ -147,6 +164,7 @@ const EditProfileScreen = ({ navigation }) => {
 
       <ScrollView
         style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -176,7 +194,7 @@ const EditProfileScreen = ({ navigation }) => {
           </View>
 
           {/* Personal Information */}
-          <View style={styles.section}>
+          <View style={[styles.section, isTabletUp && styles.sectionCard]}>
             <Text style={styles.sectionTitle}>
               Personal Information
             </Text>
@@ -213,9 +231,12 @@ const EditProfileScreen = ({ navigation }) => {
             <Input
               label="Phone"
               value={formData.phone}
-              editable={false}
-              placeholder="Phone number"
+              onChangeText={text =>
+                setFormData({ ...formData, phone: text.replace(/[^0-9+ ]/g, '') })
+              }
+              placeholder="Enter phone number"
               keyboardType="phone-pad"
+              maxLength={15}
             />
 
             {/* Date of Birth Picker */}
@@ -223,7 +244,7 @@ const EditProfileScreen = ({ navigation }) => {
               <Text style={styles.fieldLabel}>Date of Birth</Text>
               <TouchableOpacity
                 style={styles.datePickerButton}
-                onPress={() => setShowDatePicker(true)}
+                onPress={openDatePicker}
               >
                 <Icon name="calendar" size={16} color={colors.gray[500]} />
                 <Text style={[
@@ -277,7 +298,7 @@ const EditProfileScreen = ({ navigation }) => {
           </View>
 
           {/* Medical Information */}
-          <View style={styles.section}>
+          <View style={[styles.section, isTabletUp && styles.sectionCard]}>
             <Text style={styles.sectionTitle}>
               Medical Information
             </Text>
@@ -330,7 +351,7 @@ const EditProfileScreen = ({ navigation }) => {
           </View>
 
           {/* Address */}
-          <View style={styles.section}>
+          <View style={[styles.section, isTabletUp && styles.sectionCard]}>
             <Text style={styles.sectionTitle}>Address</Text>
 
             <Input
@@ -425,6 +446,12 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.lg,
   },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
   avatarSection: {
     alignItems: 'center',
     marginBottom: spacing.xl,
@@ -451,6 +478,14 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: spacing.xl,
+  },
+  sectionCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+    borderRadius: borderRadius.xl,
+    padding: spacing.lg,
+    ...shadows.sm,
   },
   sectionTitle: {
     fontSize: typography.fontSize.lg,

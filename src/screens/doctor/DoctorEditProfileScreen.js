@@ -12,12 +12,13 @@ import {
     View,
     KeyboardAvoidingView,
     Platform,
+    useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { pickImage } from '../../utils/imagePicker';
 import { useAuth } from '../../contexts/AuthContext';
-import { colors, spacing, typography } from '../../styles/theme';
+import { colors, spacing, typography, borderRadius, shadows } from '../../styles/theme';
 import { Avatar, Button, Header, Input, DropdownPicker } from '../../components/common';
 import { validateEmail } from '../../utils/validation';
 import Icon from '../../components/Icon';
@@ -26,6 +27,10 @@ import { authAPI } from '../../services/api';
 
 const DoctorEditProfileScreen = ({ navigation }) => {
     const { user, updateProfile } = useAuth();
+    const { width } = useWindowDimensions();
+    const isWeb = Platform.OS === 'web';
+    const isTabletUp = width >= 768;
+    const isNarrow = width < 560;
 
     const HOUR_OPTIONS = Array.from({ length: 17 }, (_, i) => {
         const h = i + 6; // 6 AM to 10 PM
@@ -85,7 +90,7 @@ const DoctorEditProfileScreen = ({ navigation }) => {
             if (!result.cancelled && result.uri) {
                 setAvatarUri(result.uri);
                 // Upload to server
-                const uploadRes = await authAPI.uploadAvatar(result.uri);
+                const uploadRes = await authAPI.uploadAvatar(result);
                 if (uploadRes.success) {
                     setAvatarUri(uploadRes.avatarUrl);
                     setFormData(prev => ({ ...prev, avatar: uploadRes.avatarUrl }));
@@ -189,6 +194,7 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                 firstName: formData.firstName.trim(),
                 lastName: formData.lastName.trim(),
                 email: formData.email.trim().toLowerCase(),
+                phone: formData.phone.trim(),
                 specialization: formData.specialization.trim(),
                 qualifications: formData.qualifications.trim(),
                 registrationNumber: formData.registrationNumber.trim(),
@@ -273,6 +279,7 @@ const DoctorEditProfileScreen = ({ navigation }) => {
             >
                 <ScrollView
                     style={styles.scrollView}
+                    contentContainerStyle={isWeb && styles.webScrollContent}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
@@ -301,50 +308,54 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                             </Text>
                         </View>
 
-                        {/* Basic Info */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Basic Information</Text>
+                        <View style={[styles.sectionGrid, isTabletUp && styles.sectionGridWide]}>
+                            {/* Basic Info */}
+                            <View style={[styles.section, isTabletUp && styles.sectionCard]}>
+                                <Text style={styles.sectionTitle}>Basic Information</Text>
 
-                            <Input
-                                label="First Name *"
-                                value={formData.firstName}
-                                onChangeText={text => updateField('firstName', text)}
-                                error={errors.firstName}
-                                autoCapitalize="words"
-                                editable={!loading}
-                            />
+                                <Input
+                                    label="First Name *"
+                                    value={formData.firstName}
+                                    onChangeText={text => updateField('firstName', text)}
+                                    error={errors.firstName}
+                                    autoCapitalize="words"
+                                    editable={!loading}
+                                />
 
-                            <Input
-                                label="Last Name *"
-                                value={formData.lastName}
-                                onChangeText={text => updateField('lastName', text)}
-                                error={errors.lastName}
-                                autoCapitalize="words"
-                                editable={!loading}
-                            />
+                                <Input
+                                    label="Last Name *"
+                                    value={formData.lastName}
+                                    onChangeText={text => updateField('lastName', text)}
+                                    error={errors.lastName}
+                                    autoCapitalize="words"
+                                    editable={!loading}
+                                />
 
-                            <Input
-                                label="Email *"
-                                value={formData.email}
-                                onChangeText={text => updateField('email', text)}
-                                error={errors.email}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                editable={!loading}
-                            />
+                                <Input
+                                    label="Email *"
+                                    value={formData.email}
+                                    onChangeText={text => updateField('email', text)}
+                                    error={errors.email}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    editable={!loading}
+                                />
 
-                            <Input
-                                label="Phone"
-                                value={formData.phone}
-                                editable={false}
-                                keyboardType="phone-pad"
-                            />
-                        </View>
+                                <Input
+                                    label="Phone"
+                                    value={formData.phone}
+                                    onChangeText={text => updateField('phone', text.replace(/[^0-9+ ]/g, ''))}
+                                    placeholder="Enter phone number"
+                                    keyboardType="phone-pad"
+                                    maxLength={15}
+                                    editable={!loading}
+                                />
+                            </View>
 
-                        {/* Professional Info */}
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>Professional Information</Text>
+                            {/* Professional Info */}
+                            <View style={[styles.section, isTabletUp && styles.sectionCard]}>
+                                <Text style={styles.sectionTitle}>Professional Information</Text>
 
                             <Input
                                 label="Specialization *"
@@ -401,6 +412,7 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                                 maxLength={500}
                                 editable={!loading}
                             />
+                            </View>
                         </View>
 
                         {/* Consulting Hours */}
@@ -409,7 +421,7 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                             <Text style={{ fontSize: 13, color: colors.gray[500], marginBottom: spacing.md }}>
                                 Set the hours during which patients can book appointments
                             </Text>
-                            <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                            <View style={[styles.hoursRow, isNarrow && styles.hoursRowStack]}>
                                 <View style={{ flex: 1 }}>
                                     <DropdownPicker
                                         label="Start Time"
@@ -525,6 +537,11 @@ const styles = StyleSheet.create({
     scrollView: {
         flex: 1,
     },
+    webScrollContent: {
+        width: '100%',
+        maxWidth: 1180,
+        alignSelf: 'center',
+    },
     content: {
         padding: spacing.lg,
         paddingBottom: spacing['2xl'],
@@ -555,6 +572,24 @@ const styles = StyleSheet.create({
     },
     section: {
         marginBottom: spacing.xl,
+    },
+    sectionGrid: {
+        width: '100%',
+    },
+    sectionGridWide: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.lg,
+    },
+    sectionCard: {
+        flex: 1,
+        minWidth: 0,
+        backgroundColor: colors.white,
+        borderRadius: borderRadius.xl,
+        padding: spacing.lg,
+        borderWidth: 1,
+        borderColor: colors.gray[200],
+        ...shadows.sm,
     },
     sectionTitle: {
         fontSize: typography.fontSize.lg,
@@ -599,6 +634,14 @@ const styles = StyleSheet.create({
         fontFamily: typography.fontFamily.regular,
         color: colors.gray[500],
         paddingVertical: spacing.sm,
+    },
+    hoursRow: {
+        flexDirection: 'row',
+        gap: spacing.md,
+    },
+    hoursRowStack: {
+        flexDirection: 'column',
+        gap: 0,
     },
     saveButton: {
         marginBottom: spacing.xl,

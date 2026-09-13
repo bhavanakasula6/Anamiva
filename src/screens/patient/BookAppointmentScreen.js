@@ -11,6 +11,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -38,7 +40,9 @@ import Icon from '../../components/Icon';
 import { APPOINTMENT_TYPES } from '../../data/constants';
 
 const BookAppointmentScreen = ({ route, navigation }) => {
-  const { doctorId } = route.params;
+  const { doctorId = '' } = route.params || {};
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
   const { user } = useAuth();
   const { getDoctorDetails, getDoctorAvailability, bookAppointment } =
     usePatient();
@@ -158,6 +162,7 @@ const BookAppointmentScreen = ({ route, navigation }) => {
 
       <ScrollView
         style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Doctor Info */}
@@ -377,6 +382,7 @@ const BookAppointmentScreen = ({ route, navigation }) => {
 
       {/* Bottom Action */}
       <View style={styles.bottomAction}>
+        <View style={isWeb && styles.bottomActionInner}>
         <View style={styles.priceRow}>
           <Text style={styles.priceLabel}>Total Amount</Text>
           <Text style={styles.priceValue}>
@@ -393,6 +399,7 @@ const BookAppointmentScreen = ({ route, navigation }) => {
         >
           Confirm Booking
         </Button>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -401,6 +408,12 @@ const BookAppointmentScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.white },
   container: { flex: 1, backgroundColor: colors.gray[50] },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+    paddingBottom: 140,
+  },
 
   doctorCard: {
     margin: spacing.lg,
@@ -549,6 +562,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     ...shadows.xl,
+  },
+  bottomActionInner: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
   },
 
   priceRow: {

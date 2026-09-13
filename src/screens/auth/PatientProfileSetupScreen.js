@@ -11,13 +11,15 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   Alert,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
-import { colors, typography, spacing } from '../../styles/theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../../styles/theme';
 import { Button, Input, DropdownPicker } from '../../components/common';
 import { validateEmail, validateRequired } from '../../utils/validation';
 import { USER_ROLES, BLOOD_GROUPS, GENDERS, INDIAN_STATES, CITIES_BY_STATE } from '../../data/constants';
@@ -145,8 +147,12 @@ const getCityLocation = (city, state) => {
 };
 
 const PatientProfileSetupScreen = ({ navigation, route }) => {
-  const { phone, role } = route.params;
+  const { email = '', role = 'patient' } = route.params || {};
   const { completeProfile } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isDesktop = width >= 900;
+  const isTabletUp = width >= 768;
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -178,6 +184,10 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
         [field]: null,
       }));
     }
+  };
+
+  const handleBack = () => {
+    navigation.replace('RoleSelection', { email });
   };
 
   const validate = () => {
@@ -221,7 +231,7 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
     try {
       const profileData = {
         ...formData,
-        phone,
+        email,
         role: USER_ROLES.PATIENT,
         fullName: `${formData.firstName} ${formData.lastName}`,
         phoneVerified: true,
@@ -266,21 +276,39 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
+          style={isWeb && styles.webScroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.content}>
+          <View
+            style={[
+              styles.content,
+              isWeb && styles.webContent,
+              isDesktop && styles.desktopContent,
+            ]}
+          >
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Complete Your Profile</Text>
+              <View style={styles.headerRow}>
+                <TouchableOpacity
+                  style={styles.backButton}
+                  activeOpacity={0.8}
+                  onPress={handleBack}
+                >
+                  <Icon name="back" size={20} color={colors.text.primary} />
+                </TouchableOpacity>
+                <View style={styles.headerText}>
+                  <Text style={styles.title}>Complete Your Profile</Text>
+                </View>
+              </View>
               <Text style={styles.subtitle}>
                 Help us serve you better by providing your information
               </Text>
             </View>
 
             {/* Form */}
-            <View style={styles.form}>
+            <View style={[styles.form, isWeb && isTabletUp && styles.formCard]}>
               {/* Personal Information */}
               <View style={styles.sectionHeader}>
                 <Icon name="personalInfo" size={28} color={colors.primary[500]} />
@@ -320,12 +348,22 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
               {/* Date Picker */}
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Date of Birth *</Text>
-                <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker(true)}>
-                  <Icon name="calendar" size={16} color={colors.gray[500]} />
-                  <Text style={styles.datePickerText}>
-                    {formData.dateOfBirth || 'Select date'}
-                  </Text>
-                </TouchableOpacity>
+                {isWeb ? (
+                  <TextInput
+                    style={styles.dateInputWeb}
+                    value={formData.dateOfBirth}
+                    onChangeText={(value) => updateField('dateOfBirth', value)}
+                    placeholder="DD/MM/YYYY"
+                    placeholderTextColor={colors.gray[400]}
+                  />
+                ) : (
+                  <TouchableOpacity style={styles.datePickerButton} onPress={() => setShowDatePicker(true)}>
+                    <Icon name="calendar" size={16} color={colors.gray[500]} />
+                    <Text style={styles.datePickerText}>
+                      {formData.dateOfBirth || 'Select date'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {errors.dateOfBirth && (
                   <Text style={styles.errorText}>{errors.dateOfBirth}</Text>
                 )}
@@ -386,6 +424,7 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
                       key={group}
                       style={[
                         styles.gridButton,
+                        isDesktop && styles.gridButtonDesktop,
                         formData.bloodGroup === group && styles.gridButtonSelected,
                       ]}
                       onPress={() => updateField('bloodGroup', group)}
@@ -517,22 +556,57 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray[50],
   },
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.gray[50],
   },
   scrollContent: {
     flexGrow: 1,
+  },
+  webScroll: {
+    flex: 1,
+    height: '100vh',
+    maxHeight: '100vh',
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    backgroundColor: '#F1FBF8',
   },
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
     paddingBottom: spacing['2xl'],
   },
+  webContent: {
+    width: '100%',
+    maxWidth: 860,
+    alignSelf: 'center',
+  },
+  desktopContent: {
+    paddingTop: spacing['2xl'],
+  },
   header: {
     marginBottom: spacing.sm,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray[200],
+  },
+  headerText: {
+    flex: 1,
   },
   title: {
     fontSize: typography.fontSize['2xl'],
@@ -560,9 +634,30 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.gray[700],
   },
+  dateInputWeb: {
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: 8,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[700],
+    backgroundColor: colors.white,
+    outlineStyle: 'none',
+    outlineWidth: 0,
+    boxShadow: 'none',
+  },
 
   form: {
     marginTop: spacing.sm,
+  },
+  formCard: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primary[100],
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    ...shadows.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -575,7 +670,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
-    color: colors.gray[900],
+    color: colors.text.primary,
     marginTop: spacing.lg,
     marginBottom: spacing.md,
   },
@@ -625,6 +720,9 @@ const styles = StyleSheet.create({
     borderColor: colors.gray[300],
     borderRadius: 8,
     alignItems: 'center',
+  },
+  gridButtonDesktop: {
+    width: '15%',
   },
   gridButtonSelected: {
     borderColor: colors.primary[500],

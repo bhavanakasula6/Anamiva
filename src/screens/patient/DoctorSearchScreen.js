@@ -6,10 +6,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -44,6 +46,9 @@ import {
 const DoctorSearchScreen = ({ navigation }) => {
   const { user } = useAuth();
   const { searchDoctors } = usePatient();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
 
   const patientCity =
     typeof user?.address === 'object'
@@ -647,9 +652,10 @@ const DoctorSearchScreen = ({ navigation }) => {
             keyExtractor={(item) =>
               item._id
             }
-            contentContainerStyle={
-              styles.listContent
-            }
+            contentContainerStyle={[styles.listContent, isWeb && styles.webListContent]}
+            numColumns={isTabletUp ? 2 : 1}
+            key={isTabletUp ? 'doctor-grid' : 'doctor-list'}
+            columnWrapperStyle={isTabletUp && styles.listColumn}
             showsVerticalScrollIndicator={
               false
             }
@@ -790,6 +796,7 @@ const styles = StyleSheet.create({
 
   filtersScroller: {
     backgroundColor: colors.white,
+    minHeight: 100,
   },
 
   filtersRow: {
@@ -912,8 +919,18 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     flexGrow: 1,
   },
+  webListContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
+  listColumn: {
+    gap: spacing.md,
+  },
 
   doctorCard: {
+    flex: 1,
     marginBottom: spacing.lg,
     padding: spacing.lg,
     borderRadius: borderRadius.xl,
@@ -937,6 +954,7 @@ const styles = StyleSheet.create({
   doctorInfo: {
     flex: 1,
     marginLeft: spacing.md,
+    minWidth: 0,
   },
 
   doctorName: {
@@ -945,6 +963,7 @@ const styles = StyleSheet.create({
       typography.fontFamily.bold,
     color: colors.gray[900],
     marginBottom: 2,
+    flexShrink: 1,
   },
 
   doctorSpecialty: {
@@ -953,6 +972,7 @@ const styles = StyleSheet.create({
     fontFamily:
       typography.fontFamily.medium,
     marginBottom: 4,
+    flexShrink: 1,
   },
 
   cityRow: {

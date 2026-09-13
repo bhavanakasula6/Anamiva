@@ -10,6 +10,8 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,6 +35,9 @@ import {
 import Icon from '../../components/Icon';
 
 const MedicationsScreen = ({navigation}) => {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
   const {
     activeMedications,
     loadActiveMedications,
@@ -110,7 +115,10 @@ const MedicationsScreen = ({navigation}) => {
             <MedicationCard medication={item} />
           )}
           keyExtractor={(item) => item.id || item._id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, isWeb && styles.webListContent]}
+          numColumns={isTabletUp ? 2 : 1}
+          key={isTabletUp ? 'medications-grid' : 'medications-list'}
+          columnWrapperStyle={isTabletUp && styles.listColumn}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <EmptyState
@@ -145,8 +153,18 @@ const styles = StyleSheet.create({
   listContent: {
     padding: spacing.lg,
   },
+  webListContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
+  listColumn: {
+    gap: spacing.md,
+  },
 
   medicationCard: {
+    flex: 1,
     marginBottom: spacing.md,
     padding: spacing.lg,
     ...shadows.sm,
@@ -170,12 +188,14 @@ const styles = StyleSheet.create({
 
   medicationInfo: {
     flex: 1,
+    minWidth: 0,
   },
 
   medicationName: {
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[900],
+    flexShrink: 1,
   },
 
   dosage: {

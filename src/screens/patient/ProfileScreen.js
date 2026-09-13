@@ -5,10 +5,12 @@
 
 import {
   Alert,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,8 +36,19 @@ import Icon from '../../components/Icon';
 
 const ProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to logout?');
+      if (confirmed) {
+        await logout();
+      }
+      return;
+    }
+
     Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -95,6 +108,7 @@ const ProfileScreen = ({ navigation }) => {
 
       <ScrollView
         style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
@@ -122,11 +136,12 @@ const ProfileScreen = ({ navigation }) => {
           </Button>
         </View>
 
-        {/* Personal Info */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Personal Information
-          </Text>
+        <View style={[styles.profileContentGrid, isTabletUp && styles.profileContentGridWide]}>
+          {/* Personal Info */}
+          <Card style={[styles.section, isTabletUp && styles.infoSectionWide]}>
+            <Text style={styles.sectionTitle}>
+              Personal Information
+            </Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Blood Group</Text>
@@ -162,16 +177,17 @@ const ProfileScreen = ({ navigation }) => {
               {(typeof user?.address === 'object' ? user?.address?.state : null) || 'Not set'}
             </Text>
           </View>
-        </Card>
+          </Card>
 
-        {/* Main Menu */}
-        <Card style={styles.section}>
-          <MenuItem
-            icon="calendar"
-            title="Appointments"
-            subtitle="View your appointments"
-            onPress={() => navigation.navigate('Appointments')}
-          />
+          <View style={isTabletUp && styles.menuColumnWide}>
+            {/* Main Menu */}
+            <Card style={styles.section}>
+              <MenuItem
+                icon="calendar"
+                title="Appointments"
+                subtitle="View your appointments"
+                onPress={() => navigation.navigate('Appointments')}
+              />
 
           <MenuItem
             icon="file-text"
@@ -193,16 +209,16 @@ const ProfileScreen = ({ navigation }) => {
             subtitle="View saved doctors"
             onPress={() => navigation.navigate('FavoriteDoctors')}
           />
-        </Card>
+            </Card>
 
-        {/* Settings */}
-        <Card style={styles.section}>
-          <MenuItem
-            icon="bell"
-            title="Notifications"
-            subtitle="Manage notifications"
-            onPress={() => navigation.navigate('Notifications')}
-          />
+            {/* Settings */}
+            <Card style={styles.section}>
+              <MenuItem
+                icon="bell"
+                title="Notifications"
+                subtitle="Manage notifications"
+                onPress={() => navigation.navigate('Notifications')}
+              />
 
           <MenuItem
             icon="settings"
@@ -217,7 +233,9 @@ const ProfileScreen = ({ navigation }) => {
             subtitle="Get help"
             onPress={() => navigation.navigate('HelpSupport')}
           />
-        </Card>
+            </Card>
+          </View>
+        </View>
 
         {/* Logout */}
         <Button
@@ -243,6 +261,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.gray[50],
+  },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
   },
 
   header: {
@@ -275,6 +299,22 @@ const styles = StyleSheet.create({
     margin: spacing.lg,
     padding: spacing.lg,
   },
+  profileContentGrid: {
+    width: '100%',
+  },
+  profileContentGridWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
+  infoSectionWide: {
+    flex: 1.35,
+    marginHorizontal: 0,
+  },
+  menuColumnWide: {
+    flex: 1,
+  },
 
   sectionTitle: {
     fontSize: typography.fontSize.lg,
@@ -285,6 +325,7 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing.lg,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
@@ -293,12 +334,15 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: typography.fontSize.sm,
     color: colors.gray[600],
+    flexShrink: 0,
   },
 
   infoValue: {
     fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.medium,
     color: colors.gray[900],
+    flex: 1,
+    textAlign: 'right',
   },
 
   menuItem: {
@@ -321,6 +365,7 @@ const styles = StyleSheet.create({
 
   menuContent: {
     flex: 1,
+    minWidth: 0,
   },
 
   menuTitle: {

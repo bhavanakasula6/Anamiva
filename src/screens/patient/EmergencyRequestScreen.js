@@ -13,6 +13,8 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -42,6 +44,8 @@ import {
 import Icon from '../../components/Icon';
 
 const EmergencyRequestScreen = ({ navigation }) => {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
   const { createEmergencyRequest } = usePatient();
   const { user } = useAuth();
 
@@ -288,7 +292,11 @@ const EmergencyRequestScreen = ({ navigation }) => {
           leftIcon="back"
           onLeftPress={() => navigation.goBack()}
         />
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={isWeb && styles.webScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.activeContent}>
             {/* Status Banner */}
             <View style={[
@@ -448,7 +456,11 @@ const EmergencyRequestScreen = ({ navigation }) => {
         onLeftPress={() => navigation.goBack()}
       />
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Warning */}
         <Card style={styles.warningCard}>
           <Icon name="alert-triangle" size={40} color={colors.danger[600]} />
@@ -528,15 +540,17 @@ const EmergencyRequestScreen = ({ navigation }) => {
 
       {/* Bottom Action */}
       <View style={styles.bottomAction}>
-        <Button
-          onPress={handleSubmit}
-          loading={loading}
-          variant="danger"
-          fullWidth
-          size="lg"
-        >
-          Send Emergency Request
-        </Button>
+        <View style={isWeb && styles.bottomActionInner}>
+          <Button
+            onPress={handleSubmit}
+            loading={loading}
+            variant="danger"
+            fullWidth
+            size="lg"
+          >
+            Send Emergency Request
+          </Button>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -545,6 +559,12 @@ const EmergencyRequestScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.white },
   container: { flex: 1, backgroundColor: colors.gray[50] },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
+    paddingBottom: 120,
+  },
 
   // Warning card
   warningCard: {
@@ -623,6 +643,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
     ...shadows.xl,
+  },
+  bottomActionInner: {
+    width: '100%',
+    maxWidth: 920,
+    alignSelf: 'center',
   },
 
   // ============================================
@@ -718,6 +743,7 @@ const styles = StyleSheet.create({
   doctorDetails: {
     flex: 1,
     marginLeft: spacing.md,
+    minWidth: 0,
   },
   doctorName: {
     fontSize: typography.fontSize.lg,

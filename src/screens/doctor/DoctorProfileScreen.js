@@ -2,7 +2,7 @@
  * Doctor Profile Screen
  */
 
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, Button, Card, Header } from '../../components/common';
 import Icon from '../../components/Icon';
@@ -11,8 +11,19 @@ import { borderRadius, colors, shadows, spacing, typography } from '../../styles
 
 const DoctorProfileScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to logout?');
+      if (confirmed) {
+        await logout();
+      }
+      return;
+    }
+
     Alert.alert('Logout', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -34,7 +45,11 @@ const DoctorProfileScreen = ({ navigation }) => {
         onLeftPress={() => navigation.goBack()}
         variant="surface"
       />
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={isWeb && styles.webScrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Avatar source={{ uri: user?.avatar }} size={80} name={user?.fullName || user?.name} />
@@ -72,67 +87,69 @@ const DoctorProfileScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Info */}
-        <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Professional Information</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Clinic Name</Text>
-            <Text style={styles.infoValue}>{user?.address?.clinic || user?.clinicInfo?.name || '-'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Qualifications</Text>
-            <Text style={styles.infoValue}>{user?.qualifications || '-'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Registration No</Text>
-            <Text style={styles.infoValue}>{user?.registrationNumber || '-'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{user?.phone || user?.phoneNumber || '-'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <Text style={styles.infoValue}>{user?.email || '-'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>City</Text>
-            <Text style={styles.infoValue}>{user?.address?.city || '-'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>State</Text>
-            <Text style={styles.infoValue}>{user?.address?.state || '-'}</Text>
-          </View>
-        </Card>
+        <View style={[styles.profileContentGrid, isTabletUp && styles.profileContentGridWide]}>
+          {/* Info */}
+          <Card style={[styles.section, isTabletUp && styles.infoSectionWide]}>
+            <Text style={styles.sectionTitle}>Professional Information</Text>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Clinic Name</Text>
+              <Text style={styles.infoValue}>{user?.address?.clinic || user?.clinicInfo?.name || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Qualifications</Text>
+              <Text style={styles.infoValue}>{user?.qualifications || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Registration No</Text>
+              <Text style={styles.infoValue}>{user?.registrationNumber || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Phone</Text>
+              <Text style={styles.infoValue}>{user?.phone || user?.phoneNumber || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Email</Text>
+              <Text style={styles.infoValue}>{user?.email || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>City</Text>
+              <Text style={styles.infoValue}>{user?.address?.city || '-'}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>State</Text>
+              <Text style={styles.infoValue}>{user?.address?.state || '-'}</Text>
+            </View>
+          </Card>
 
-        {/* Menu */}
-        <Card style={styles.section}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('DoctorEditProfile')}>
-            <Icon name="edit" size={18} color={colors.gray[600]} />
-            <Text style={styles.menuText}>Edit Profile</Text>
-            <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Appointments')}>
-            <Icon name="calendar" size={18} color={colors.gray[600]} />
-            <Text style={styles.menuText}>Appointments</Text>
-            <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Notifications')}>
-            <Icon name="bell" size={18} color={colors.gray[600]} />
-            <Text style={styles.menuText}>Notifications</Text>
-            <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
-            <Icon name="settings" size={18} color={colors.gray[600]} />
-            <Text style={styles.menuText}>Settings</Text>
-            <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HelpSupport')}>
-            <Icon name="help-circle" size={18} color={colors.gray[600]} />
-            <Text style={styles.menuText}>Help & Support</Text>
-            <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-          </TouchableOpacity>
-        </Card>
+          {/* Menu */}
+          <Card style={[styles.section, isTabletUp && styles.menuSectionWide]}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('DoctorEditProfile')}>
+              <Icon name="edit" size={18} color={colors.gray[600]} />
+              <Text style={styles.menuText}>Edit Profile</Text>
+              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Appointments')}>
+              <Icon name="calendar" size={18} color={colors.gray[600]} />
+              <Text style={styles.menuText}>Appointments</Text>
+              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Notifications')}>
+              <Icon name="bell" size={18} color={colors.gray[600]} />
+              <Text style={styles.menuText}>Notifications</Text>
+              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
+              <Icon name="settings" size={18} color={colors.gray[600]} />
+              <Text style={styles.menuText}>Settings</Text>
+              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HelpSupport')}>
+              <Icon name="help-circle" size={18} color={colors.gray[600]} />
+              <Text style={styles.menuText}>Help & Support</Text>
+              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
+            </TouchableOpacity>
+          </Card>
+        </View>
 
         <Button variant="outline" onPress={handleLogout} style={styles.logoutButton}>
           Logout
@@ -152,6 +169,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.gray[50],
+  },
+  webScrollContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
   },
   header: {
     alignItems: 'center',
@@ -206,6 +229,15 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     ...shadows.sm,
   },
+  profileContentGrid: {
+    width: '100%',
+  },
+  profileContentGridWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.lg,
+  },
   statItem: {
     flex: 1,
     alignItems: 'center',
@@ -229,6 +261,14 @@ const styles = StyleSheet.create({
     margin: spacing.lg,
     padding: spacing.lg,
   },
+  infoSectionWide: {
+    flex: 1.5,
+    marginHorizontal: 0,
+  },
+  menuSectionWide: {
+    flex: 1,
+    marginHorizontal: 0,
+  },
   sectionTitle: {
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
@@ -238,6 +278,7 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing.lg,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
@@ -246,11 +287,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.regular,
     color: colors.gray[600],
+    flexShrink: 0,
   },
   infoValue: {
     fontSize: typography.fontSize.sm,
     fontFamily: typography.fontFamily.medium,
     color: colors.gray[900],
+    flex: 1,
+    textAlign: 'right',
   },
   menuItem: {
     flexDirection: 'row',
@@ -268,7 +312,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.medium,
     color: colors.gray[900],
-    marginLeft: spacing.sm
+    marginLeft: spacing.sm,
   },
   menuArrow: {
     fontSize: 20,

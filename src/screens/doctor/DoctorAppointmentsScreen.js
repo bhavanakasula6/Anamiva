@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, Badge, Card, EmptyState, Header, Loading } from '../../components/common';
 import Icon from '../../components/Icon';
@@ -40,6 +40,9 @@ const calculateAge = (dateOfBirth) => {
 
 const DoctorAppointmentsScreen = ({ navigation }) => {
   const { appointments, loading } = useDoctor();
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const isTabletUp = width >= 768;
   const [activeTab, setActiveTab] = useState(APPOINTMENT_STATUS.PENDING);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
 
@@ -142,7 +145,7 @@ const DoctorAppointmentsScreen = ({ navigation }) => {
         />
 
         {/* Tabs */}
-        <View style={styles.tabsContainer}>
+        <View style={[styles.tabsContainer, isWeb && styles.webTabsContainer]}>
           {tabs.map((tab) => (
             <TouchableOpacity
               key={tab.id}
@@ -162,7 +165,10 @@ const DoctorAppointmentsScreen = ({ navigation }) => {
           data={filteredAppointments}
           renderItem={({ item }) => <AppointmentCard appointment={item} />}
           keyExtractor={(item, index) => item.id?.toString() || `apt-${index}`}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, isWeb && styles.webListContent]}
+          numColumns={isTabletUp ? 2 : 1}
+          key={isTabletUp ? 'tablet-grid' : 'mobile-list'}
+          columnWrapperStyle={isTabletUp && styles.listColumn}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <EmptyState
@@ -198,6 +204,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.gray[200],
   },
+  webTabsContainer: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+  },
   tab: {
     flex: 1,
     alignItems: 'center',
@@ -223,7 +234,17 @@ const styles = StyleSheet.create({
   listContent: {
     padding: spacing.lg,
   },
+  webListContent: {
+    width: '100%',
+    maxWidth: 1180,
+    alignSelf: 'center',
+    paddingBottom: spacing['2xl'],
+  },
+  listColumn: {
+    gap: spacing.md,
+  },
   card: {
+    flex: 1,
     marginBottom: spacing.md,
     padding: spacing.lg,
   },
@@ -235,11 +256,13 @@ const styles = StyleSheet.create({
   patientInfo: {
     flex: 1,
     marginLeft: spacing.md,
+    minWidth: 0,
   },
   patientName: {
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.semiBold,
     color: colors.gray[900],
+    flexShrink: 1,
   },
   patientDetails: {
     fontSize: typography.fontSize.sm,

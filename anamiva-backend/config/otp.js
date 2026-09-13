@@ -1,149 +1,110 @@
+const crypto = require("crypto");
 const redis = require("redis");
-const twilio = require("twilio");
+const { SESv2Client, SendEmailCommand } = require("@aws-sdk/client-sesv2");
 const {
   REDIS_URL,
   OTP_EXPIRES_IN,
   OTP_LENGTH,
-  TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN,
-  TWILIO_PHONE
+  AWS_REGION,
+  AWS_SES_FROM_EMAIL,
+  AWS_SES_CONFIGURATION_SET,
 } = require("./env");
 
-/* =========================
-   REDIS
-========================= */
 const client = redis.createClient({ url: REDIS_URL });
-
-client.on("error", err => {
-  console.error("Redis Error:", err.message);
-});
-
+client.on("error", err => console.error("Redis Error:", err.message));
 (async () => {
   await client.connect();
   console.log("Redis connected");
 })();
 
-/* =========================
-   TWILIO
-========================= */
-const twilioClient = twilio(
-  TWILIO_ACCOUNT_SID,
-  TWILIO_AUTH_TOKEN
-);
+const ses = new SESv2Client({ region: AWS_REGION });
+const OTP_TTL = Number(OTP_EXPIRES_IN) || 300;
+const OTP_DIGITS = Number(OTP_LENGTH) || 6;
+const normalizeEmail = email => String(email || "").trim().toLowerCase();
+const emailKey = email => normalizeEmail(email).replace(/[^a-z0-9]/g, "_");
+const hashOtp = otp => crypto.createHash("sha256").update(String(otp)).digest("hex");
 
-/* =========================
-   OTP HELPERS
-========================= */
-const generateOTP = () => {
-  let otp = "";
-  for (let i = 0; i < OTP_LENGTH; i++) {
-    otp += Math.floor(Math.random() * 10);
+const makeOtp = () => {
+  const minimum = 10 ** (OTP_DIGITS - 1);
+  const maximum = 10 ** OTP_DIGITS;
+  return String(crypto.randomInt(minimum, maximum));
+};
+
+const sendEmailOtp = async (email, otp) => {
+  if (!AWS_SES_FROM_EMAIL) {
+    const error = new Error("AWS_SES_FROM_EMAIL is required");
+    error.statusCode = 500;
+    throw error;
   }
-  return otp;
+
+  const command = new SendEmailCommand({
+    FromEmailAddress: AWS_SES_FROM_EMAIL,
+    Destination: { ToAddresses: [email] },
+    ConfigurationSetName: AWS_SES_CONFIGURATION_SET || undefined,
+    Content: {
+      Simple: {
+        Subject: { Data: "Your Anamiva verification code", Charset: "UTF-8" },
+        Body: {
+          Text: {
+            Data: `Your Anamiva verification code is ${otp}. It expires in ${Math.ceil(OTP_TTL / 60)} minutes.`,
+            Charset: "UTF-8",
+          },
+          Html: {
+            Data: `<p>Your Anamiva verification code is <strong>${otp}</strong>.</p><p>It expires in ${Math.ceil(OTP_TTL / 60)} minutes.</p>`,
+            Charset: "UTF-8",
+          },
+        },
+      },
+    },
+  });
+
+  return ses.send(command);
 };
 
-const normalizePhoneKey = (phone = "") => {
-  const digits = String(phone).replace(/\D/g, "");
-  return digits.length > 10 ? digits.slice(-10) : digits;
-};
+const sendOTP = async email => {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    const error = new Error("Enter a valid email address");
+    error.statusCode = 400;
+    throw error;
+  }
 
-const saveOTP = async (phone, otp) => {
-  await client.setEx(`otp:${normalizePhoneKey(phone)}`, OTP_EXPIRES_IN, otp);
-};
+  const key = emailKey(normalized);
+  const lockKey = `otp_inflight:${key}`;
+  const lockAcquired = await client.set(lockKey, "1", { NX: true, EX: 10 });
+  if (!lockAcquired) return true;
 
-const verifyOTP = async (phone, otp) => {
-  const saved = await client.get(`otp:${normalizePhoneKey(phone)}`);
-  console.log(`OTP verify: phone=${phone}, provided=${otp}, saved=${saved}`);
-  if (saved && saved.toString().trim() === otp.toString().trim()) {
-    await client.del(`otp:${normalizePhoneKey(phone)}`);
+  try {
+    const rateKey = `otp_rate:${key}`;
+    const requestCount = Number(await client.get(rateKey)) || 0;
+    if (requestCount >= 3) {
+      const error = new Error("Too many OTP requests. Please try again later.");
+      error.statusCode = 429;
+      throw error;
+    }
+
+    const otp = makeOtp();
+    await client.set(`otp:${key}`, hashOtp(otp), { EX: OTP_TTL });
+    await sendEmailOtp(normalized, otp);
+    const newCount = await client.incr(rateKey);
+    if (newCount === 1) await client.expire(rateKey, 3600);
+    console.log(`Email OTP sent successfully to ${normalized}`);
     return true;
+  } finally {
+    await client.del(lockKey);
   }
-  return false;
 };
 
-/* =========================
-   OTP RATE LIMITING (max 3 per hour per phone)
-========================= */
-const OTP_RATE_LIMIT = 3;
-const OTP_RATE_WINDOW = 3600; // 1 hour in seconds
+const verifyOTP = async (email, otp) => {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !otp) return false;
 
-const checkOTPRateLimit = async (phone) => {
-  const key = `otp_rate:${phone}`;
-  const count = await client.get(key);
+  const key = `otp:${emailKey(normalized)}`;
+  const storedHash = await client.get(key);
+  if (!storedHash || storedHash !== hashOtp(String(otp).trim())) return false;
 
-  if (count && Number(count) >= OTP_RATE_LIMIT) {
-    return false; // Rate limited
-  }
-
-  // Increment counter, set TTL on first request
-  const newCount = await client.incr(key);
-  if (newCount === 1) {
-    await client.expire(key, OTP_RATE_WINDOW);
-  }
-
+  await client.del(key);
   return true;
 };
 
-const sendOTP = async phone => {
-  const phoneKey = normalizePhoneKey(phone);
-
-  if (!phoneKey || phoneKey.length !== 10) {
-    const err = new Error('Enter a valid 10-digit phone number');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const otpKey = `otp:${phoneKey}`;
-  const inFlightKey = `otp_inflight:${phoneKey}`;
-  const lockAcquired = await client.set(inFlightKey, '1', {
-    NX: true,
-    EX: 10,
-  });
-
-  if (!lockAcquired) {
-    const existingOtp = await client.get(otpKey);
-    if (existingOtp) {
-      return existingOtp;
-    }
-  }
-
-  // Rate limit disabled for testing
-  // const allowed = await checkOTPRateLimit(phone);
-  // if (!allowed) {
-  //   const err = new Error('Too many OTP requests. Max 3 per hour. Please try again later.');
-  //   err.statusCode = 429;
-  //   throw err;
-  // }
-
-  const otp = generateOTP();
-  await saveOTP(phone, otp);
-
-  // Log OTP to server console for testing
-  console.log(`\n========== OTP for ${phone}: ${otp} ==========\n`);
-
-  // Send SMS via Twilio (don't throw on failure — OTP is saved in Redis)
-  try {
-    await twilioClient.messages.create({
-      from: TWILIO_PHONE,
-      to: phone,
-      body: `Your Anamiva verification code is ${otp}. Valid for 10 minutes.`
-    });
-    console.log(`SMS sent successfully to ${phone}`);
-  } catch (twilioErr) {
-    console.error(`Twilio SMS failed [${twilioErr.code || 'UNKNOWN'}]: ${twilioErr.message}`);
-    if (twilioErr.code === 20003) {
-      console.error('>>> Twilio credentials are INVALID. Update TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in .env');
-    }
-  }
-
-  if (lockAcquired) {
-    await client.del(inFlightKey);
-  }
-
-  return otp;
-};
-
-module.exports = {
-  sendOTP,
-  verifyOTP
-};
+module.exports = { sendOTP, verifyOTP };
