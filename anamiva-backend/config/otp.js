@@ -1,186 +1,110 @@
+const crypto = require("crypto");
 const redis = require("redis");
+const { SESv2Client, SendEmailCommand } = require("@aws-sdk/client-sesv2");
 const {
   REDIS_URL,
   OTP_EXPIRES_IN,
   OTP_LENGTH,
-  MSG91_AUTH_KEY,
-  MSG91_TEMPLATE_ID,
+  AWS_REGION,
+  AWS_SES_FROM_EMAIL,
+  AWS_SES_CONFIGURATION_SET,
 } = require("./env");
 
-/* =========================
-   REDIS
-========================= */
 const client = redis.createClient({ url: REDIS_URL });
-
-client.on("error", err => {
-  console.error("Redis Error:", err.message);
-});
-
+client.on("error", err => console.error("Redis Error:", err.message));
 (async () => {
   await client.connect();
   console.log("Redis connected");
 })();
 
-/* =========================
-   MSG91
-========================= */
-const MSG91_BASE_URL = "https://control.msg91.com/api/v5/otp";
+const ses = new SESv2Client({ region: AWS_REGION });
+const OTP_TTL = Number(OTP_EXPIRES_IN) || 300;
+const OTP_DIGITS = Number(OTP_LENGTH) || 6;
+const normalizeEmail = email => String(email || "").trim().toLowerCase();
+const emailKey = email => normalizeEmail(email).replace(/[^a-z0-9]/g, "_");
+const hashOtp = otp => crypto.createHash("sha256").update(String(otp)).digest("hex");
 
-const normalizePhoneKey = (phone = "") => {
-  const digits = String(phone).replace(/\D/g, "");
-  return digits.length > 10 ? digits.slice(-10) : digits;
+const makeOtp = () => {
+  const minimum = 10 ** (OTP_DIGITS - 1);
+  const maximum = 10 ** OTP_DIGITS;
+  return String(crypto.randomInt(minimum, maximum));
 };
 
-const formatMsg91Mobile = (phone = "") => {
-  const phoneKey = normalizePhoneKey(phone);
-  return phoneKey ? `91${phoneKey}` : "";
-};
-
-const getOtpExpiryMinutes = () => {
-  const seconds = Number(OTP_EXPIRES_IN) || 300;
-  return Math.max(1, Math.ceil(seconds / 60));
-};
-
-const parseMsg91Response = async (response) => {
-  const text = await response.text();
-
-  try {
-    return JSON.parse(text);
-  } catch (_error) {
-    return { type: response.ok ? "success" : "error", message: text };
+const sendEmailOtp = async (email, otp) => {
+  if (!AWS_SES_FROM_EMAIL) {
+    const error = new Error("AWS_SES_FROM_EMAIL is required");
+    error.statusCode = 500;
+    throw error;
   }
-};
 
-const ensureMsg91Config = () => {
-  if (!MSG91_AUTH_KEY || !MSG91_TEMPLATE_ID) {
-    const err = new Error("MSG91_AUTH_KEY and MSG91_TEMPLATE_ID are required");
-    err.statusCode = 500;
-    throw err;
-  }
-};
-
-const isMsg91Success = (data) => {
-  const type = String(data?.type || "").toLowerCase();
-  const message = String(data?.message || "").toLowerCase();
-
-  return type === "success" || message.includes("success") || message.includes("verified");
-};
-
-const sendMsg91Otp = async (mobile) => {
-  const url = new URL(MSG91_BASE_URL);
-  url.searchParams.set("authkey", MSG91_AUTH_KEY);
-  url.searchParams.set("template_id", MSG91_TEMPLATE_ID);
-  url.searchParams.set("mobile", mobile);
-  url.searchParams.set("otp_length", String(OTP_LENGTH || 6));
-  url.searchParams.set("otp_expiry", String(getOtpExpiryMinutes()));
-
-  const response = await fetch(url.toString(), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
+  const command = new SendEmailCommand({
+    FromEmailAddress: AWS_SES_FROM_EMAIL,
+    Destination: { ToAddresses: [email] },
+    ConfigurationSetName: AWS_SES_CONFIGURATION_SET || undefined,
+    Content: {
+      Simple: {
+        Subject: { Data: "Your Anamiva verification code", Charset: "UTF-8" },
+        Body: {
+          Text: {
+            Data: `Your Anamiva verification code is ${otp}. It expires in ${Math.ceil(OTP_TTL / 60)} minutes.`,
+            Charset: "UTF-8",
+          },
+          Html: {
+            Data: `<p>Your Anamiva verification code is <strong>${otp}</strong>.</p><p>It expires in ${Math.ceil(OTP_TTL / 60)} minutes.</p>`,
+            Charset: "UTF-8",
+          },
+        },
+      },
     },
-    body: JSON.stringify({}),
   });
 
-  const data = await parseMsg91Response(response);
-
-  if (!response.ok || !isMsg91Success(data)) {
-    const err = new Error(data?.message || "MSG91 OTP send failed");
-    err.statusCode = response.status || 502;
-    err.providerResponse = data;
-    throw err;
-  }
-
-  return data;
+  return ses.send(command);
 };
 
-/* =========================
-   OTP RATE LIMITING (max 3 per hour per phone)
-========================= */
-const OTP_RATE_LIMIT = 3;
-const OTP_RATE_WINDOW = 3600; // 1 hour in seconds
-
-const checkOTPRateLimit = async (phone) => {
-  const key = `otp_rate:${normalizePhoneKey(phone)}`;
-  const count = await client.get(key);
-
-  if (count && Number(count) >= OTP_RATE_LIMIT) {
-    return false;
+const sendOTP = async email => {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    const error = new Error("Enter a valid email address");
+    error.statusCode = 400;
+    throw error;
   }
 
-  const newCount = await client.incr(key);
-  if (newCount === 1) {
-    await client.expire(key, OTP_RATE_WINDOW);
-  }
+  const key = emailKey(normalized);
+  const lockKey = `otp_inflight:${key}`;
+  const lockAcquired = await client.set(lockKey, "1", { NX: true, EX: 10 });
+  if (!lockAcquired) return true;
 
+  try {
+    const rateKey = `otp_rate:${key}`;
+    const requestCount = Number(await client.get(rateKey)) || 0;
+    if (requestCount >= 3) {
+      const error = new Error("Too many OTP requests. Please try again later.");
+      error.statusCode = 429;
+      throw error;
+    }
+
+    const otp = makeOtp();
+    await client.set(`otp:${key}`, hashOtp(otp), { EX: OTP_TTL });
+    await sendEmailOtp(normalized, otp);
+    const newCount = await client.incr(rateKey);
+    if (newCount === 1) await client.expire(rateKey, 3600);
+    console.log(`Email OTP sent successfully to ${normalized}`);
+    return true;
+  } finally {
+    await client.del(lockKey);
+  }
+};
+
+const verifyOTP = async (email, otp) => {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !otp) return false;
+
+  const key = `otp:${emailKey(normalized)}`;
+  const storedHash = await client.get(key);
+  if (!storedHash || storedHash !== hashOtp(String(otp).trim())) return false;
+
+  await client.del(key);
   return true;
 };
 
-const sendOTP = async phone => {
-  ensureMsg91Config();
-
-  const phoneKey = normalizePhoneKey(phone);
-
-  if (!phoneKey || phoneKey.length !== 10) {
-    const err = new Error("Enter a valid 10-digit phone number");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const inFlightKey = `otp_inflight:${phoneKey}`;
-  const lockAcquired = await client.set(inFlightKey, "1", {
-    NX: true,
-    EX: 10,
-  });
-
-  if (!lockAcquired) {
-    return true;
-  }
-
-  try {
-    // Rate limit disabled for testing. Re-enable before production launch.
-    // const allowed = await checkOTPRateLimit(phoneKey);
-    // if (!allowed) {
-    //   const err = new Error("Too many OTP requests. Max 3 per hour. Please try again later.");
-    //   err.statusCode = 429;
-    //   throw err;
-    // }
-
-    const mobile = formatMsg91Mobile(phoneKey);
-    const data = await sendMsg91Otp(mobile);
-    console.log(`MSG91 SMS OTP sent successfully to ${mobile}`);
-    return data;
-  } finally {
-    await client.del(inFlightKey);
-  }
-};
-
-const verifyOTP = async (phone, otp) => {
-  ensureMsg91Config();
-
-  const phoneKey = normalizePhoneKey(phone);
-  const mobile = formatMsg91Mobile(phoneKey);
-
-  if (!mobile || !otp) return false;
-
-  const url = new URL(`${MSG91_BASE_URL}/verify`);
-  url.searchParams.set("otp", String(otp).trim());
-  url.searchParams.set("mobile", mobile);
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      authkey: MSG91_AUTH_KEY,
-    },
-  });
-
-  const data = await parseMsg91Response(response);
-  console.log(`MSG91 OTP verify: phone=${mobile}, type=${data?.type}, message=${data?.message}`);
-
-  return response.ok && isMsg91Success(data);
-};
-
-module.exports = {
-  sendOTP,
-  verifyOTP,
-};
+module.exports = { sendOTP, verifyOTP };

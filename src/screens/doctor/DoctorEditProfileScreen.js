@@ -194,6 +194,7 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                 firstName: formData.firstName.trim(),
                 lastName: formData.lastName.trim(),
                 email: formData.email.trim().toLowerCase(),
+                phone: formData.phone.trim(),
                 specialization: formData.specialization.trim(),
                 qualifications: formData.qualifications.trim(),
                 registrationNumber: formData.registrationNumber.trim(),
@@ -344,8 +345,11 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                                 <Input
                                     label="Phone"
                                     value={formData.phone}
-                                    editable={false}
+                                    onChangeText={text => updateField('phone', text.replace(/[^0-9+ ]/g, ''))}
+                                    placeholder="Enter phone number"
                                     keyboardType="phone-pad"
+                                    maxLength={15}
+                                    editable={!loading}
                                 />
                             </View>
 

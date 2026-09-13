@@ -147,7 +147,7 @@ const getCityLocation = (city, state) => {
 };
 
 const PatientProfileSetupScreen = ({ navigation, route }) => {
-  const { phone = '', role = 'patient' } = route.params || {};
+  const { email = '', role = 'patient' } = route.params || {};
   const { completeProfile } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
@@ -187,7 +187,7 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
   };
 
   const handleBack = () => {
-    navigation.replace('RoleSelection', { phone });
+    navigation.replace('RoleSelection', { email });
   };
 
   const validate = () => {
@@ -231,7 +231,7 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
     try {
       const profileData = {
         ...formData,
-        phone,
+        email,
         role: USER_ROLES.PATIENT,
         fullName: `${formData.firstName} ${formData.lastName}`,
         phoneVerified: true,

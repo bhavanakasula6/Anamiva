@@ -4,8 +4,9 @@ const userSchema = new mongoose.Schema(
   {
     phoneNumber: {
       type: String,
-      required: true,
+      required: false,
       unique: true,
+      sparse: true,
     },
 
     role: {
@@ -19,7 +20,13 @@ const userSchema = new mongoose.Schema(
     fullName: String,
     firstName: String,
     lastName: String,
-    email: String,
+    email: {
+      type: String,
+      lowercase: true,
+      trim: true,
+      sparse: true,
+      unique: true,
+    },
     phone: String,
     avatar: String,
 
@@ -68,6 +75,11 @@ const userSchema = new mongoose.Schema(
     },
 
     phoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    emailVerified: {
       type: Boolean,
       default: false,
     },

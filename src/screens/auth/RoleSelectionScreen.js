@@ -28,7 +28,7 @@ import { USER_ROLES } from '../../data/constants';
 import Icon from '../../components/Icon';
 
 const RoleSelectionScreen = ({ navigation, route }) => {
-  const { phone = '' } = route.params || {};
+  const { email = '' } = route.params || {};
   const { selectRole } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
@@ -72,16 +72,16 @@ const RoleSelectionScreen = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      await selectRole(phone, selectedRole);
+      await selectRole(email, selectedRole);
 
       if (selectedRole === USER_ROLES.PATIENT) {
         navigation.replace('PatientProfileSetup', {
-          phone,
+          email,
           role: selectedRole,
         });
       } else {
         navigation.replace('DoctorProfileSetup', {
-          phone,
+          email,
           role: selectedRole,
         });
       }

@@ -1,6 +1,6 @@
 /**
  * Login Screen
- * Phone number entry for authentication
+ * Email entry for authentication
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -19,7 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
 import { colors, typography, spacing, borderRadius, shadows } from '../../styles/theme';
 import { Button, Input } from '../../components/common';
-import { normalizePhone, validatePhone } from '../../utils/validation';
+import { validateEmail } from '../../utils/validation';
 
 const LoginScreen = ({ navigation }) => {
   const { sendOTP } = useAuth();
@@ -30,8 +30,7 @@ const LoginScreen = ({ navigation }) => {
   const isTabletUp = width >= 768;
   const isSmall = width < 420;
 
-  const [phone, setPhone] = useState('');
-  const [countryCode] = useState('+91');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [cooldown, setCooldown] = useState(0);
@@ -56,11 +55,12 @@ const LoginScreen = ({ navigation }) => {
   const handleSendOTP = async () => {
     if (loading || requestInFlightRef.current) return; // Prevent duplicate sends
 
-    const normalizedPhone = normalizePhone(phone);
-    setPhone(normalizedPhone);
+    const normalizedEmail = email.trim().toLowerCase();
+    setEmail(normalizedEmail);
 
-    if (!validatePhone(normalizedPhone)) {
-      setErrors({ phone: 'Enter a valid 10-digit phone number' });
+    const emailError = validateEmail(normalizedEmail);
+    if (emailError) {
+      setErrors({ email: emailError });
       return;
     }
 
@@ -69,12 +69,11 @@ const LoginScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const fullPhone = `${countryCode}${normalizedPhone}`;
-      const response = await sendOTP(fullPhone);
+      const response = await sendOTP(normalizedEmail);
 
       if (response?.success) {
         setCooldown(30);
-        navigation.replace('OTPVerification', { phone: fullPhone });
+        navigation.replace('OTPVerification', { email: normalizedEmail });
       } else {
         Alert.alert('Error', response?.message || 'Failed to send OTP');
       }
@@ -159,31 +158,28 @@ const LoginScreen = ({ navigation }) => {
               isDesktop && styles.titleDesktop,
             ]}>Welcome to Anamiva</Text>
             <Text style={styles.subtitle}>
-              Sign in securely with your mobile number
+              Sign in securely with your email address
             </Text>
 
             {/* Form */}
             <View style={[styles.form, isWeb && styles.webForm]}>
-              <Text style={styles.label}>Phone Number</Text>
+              <Text style={styles.label}>Email Address</Text>
 
               <View style={styles.phoneRow}>
-                <View style={styles.countryCodeBox}>
-                  <Text style={styles.countryCode}>{countryCode}</Text>
-                </View>
-
                 <View style={styles.phoneInputContainer}>
                   <Input
-                    value={phone}
+                    value={email}
                     onChangeText={text => {
-                      setPhone(normalizePhone(text));
+                      setEmail(text.toLowerCase());
                       setErrors({});
                     }}
-                    placeholder="10-digit mobile number"
-                    keyboardType="phone-pad"
-                    textContentType="telephoneNumber"
-                    autoComplete="tel"
-                    maxLength={20}
-                    error={errors.phone}
+                    placeholder="you@example.com"
+                    keyboardType="email-address"
+                    textContentType="emailAddress"
+                    autoComplete="email"
+                    autoCapitalize="none"
+                    maxLength={120}
+                    error={errors.email}
                     style={styles.phoneInput}
                   />
                 </View>
@@ -193,7 +189,7 @@ const LoginScreen = ({ navigation }) => {
                 fullWidth
                 size="md"
                 loading={loading}
-                disabled={!validatePhone(phone) || cooldown > 0 || loading}
+                disabled={Boolean(validateEmail(email.trim())) || cooldown > 0 || loading}
                 onPress={handleSendOTP}
                 style={styles.button}
               >
@@ -206,7 +202,7 @@ const LoginScreen = ({ navigation }) => {
               <View style={styles.securityNote}>
                 <Text style={styles.securityTitle}>Secure OTP login</Text>
                 <Text style={styles.securityText}>
-                  No password needed. Your care workspace opens after phone verification.
+                  No password needed. Your care workspace opens after email verification.
                 </Text>
               </View>
             </View>

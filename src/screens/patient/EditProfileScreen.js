@@ -231,9 +231,12 @@ const EditProfileScreen = ({ navigation }) => {
             <Input
               label="Phone"
               value={formData.phone}
-              editable={false}
-              placeholder="Phone number"
+              onChangeText={text =>
+                setFormData({ ...formData, phone: text.replace(/[^0-9+ ]/g, '') })
+              }
+              placeholder="Enter phone number"
               keyboardType="phone-pad"
+              maxLength={15}
             />
 
             {/* Date of Birth Picker */}

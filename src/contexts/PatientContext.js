@@ -87,6 +87,8 @@ export const PatientProvider = ({ children }) => {
       loadNotifications();
     };
 
+    const handleNotificationCreated = () => loadNotifications();
+
     const handlePrescriptionUpdated = () => {
       loadAppointments();
       loadMedicalRecords();
@@ -152,6 +154,7 @@ export const PatientProvider = ({ children }) => {
       if (!socket) return false;
 
       socket.off('appointment-updated', handleAppointmentUpdated);
+      socket.off('notification-created', handleNotificationCreated);
       socket.off('prescription-updated', handlePrescriptionUpdated);
       socket.off('medical-record-updated', handleMedicalRecordUpdated);
       socket.off('medical-record-created', handleMedicalRecordCreated);
@@ -165,6 +168,7 @@ export const PatientProvider = ({ children }) => {
       socket.off('connect', registerListeners);
 
       socket.on('appointment-updated', handleAppointmentUpdated);
+      socket.on('notification-created', handleNotificationCreated);
       socket.on('prescription-updated', handlePrescriptionUpdated);
       socket.on('medical-record-updated', handleMedicalRecordUpdated);
       socket.on('medical-record-created', handleMedicalRecordCreated);
@@ -194,6 +198,7 @@ export const PatientProvider = ({ children }) => {
       const socket = socketService.getSocket();
       if (socket) {
         socket.off('appointment-updated', handleAppointmentUpdated);
+        socket.off('notification-created', handleNotificationCreated);
         socket.off('prescription-updated', handlePrescriptionUpdated);
         socket.off('medical-record-updated', handleMedicalRecordUpdated);
         socket.off('medical-record-created', handleMedicalRecordCreated);
@@ -512,7 +517,10 @@ export const PatientProvider = ({ children }) => {
     try {
       const response = await notificationAPI.getNotifications();
       if (response.success) {
-        setNotifications(response.notifications);
+        setNotifications((response.notifications || []).map(notification => ({
+          ...notification,
+          id: notification.id || notification._id,
+        })));
       }
       return response;
     } catch (error) {
@@ -526,7 +534,9 @@ export const PatientProvider = ({ children }) => {
       const response = await notificationAPI.markAsRead(notificationId);
       if (response.success) {
         setNotifications(prev =>
-          prev.map(notif => notif.id === notificationId ? { ...notif, read: true } : notif)
+          prev.map(notif => String(notif.id || notif._id) === String(notificationId)
+            ? { ...notif, read: true }
+            : notif)
         );
       }
       return response;

@@ -28,7 +28,7 @@ import {
 import { Button } from '../../components/common';
 
 const OTPVerificationScreen = ({ navigation, route }) => {
-  const { phone = '' } = route.params || {};
+  const { email = '' } = route.params || {};
   const { verifyOTP, sendOTP } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
@@ -54,14 +54,21 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
   /* ---------- OTP INPUT ---------- */
   const handleOtpChange = (index, value) => {
-    if (value && !/^\d+$/.test(value)) return;
+    const digits = String(value || '').replace(/\D/g, '').slice(0, 6 - index);
+    if (value && !digits) return;
 
     const newOtp = [...otp];
-    newOtp[index] = value;
+    if (digits.length > 1) {
+      digits.split('').forEach((digit, offset) => {
+        newOtp[index + offset] = digit;
+      });
+    } else {
+      newOtp[index] = digits;
+    }
     setOtp(newOtp);
 
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
+    if (digits && index < 5) {
+      inputRefs.current[Math.min(index + digits.length, 5)]?.focus();
     }
   };
 
@@ -82,11 +89,11 @@ const OTPVerificationScreen = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      const res = await verifyOTP(phone, code);
+      const res = await verifyOTP(email, code);
 
       if (res?.success) {
         if (res.isNewUser) {
-          navigation.replace('RoleSelection', { phone });
+          navigation.replace('RoleSelection', { email });
         }
         // For existing users: AuthContext.login() sets isAuthenticated=true,
         // RootNavigator auto-switches to Main. No manual navigation needed.
@@ -107,7 +114,7 @@ const OTPVerificationScreen = ({ navigation, route }) => {
     if (!canResend) return;
 
     try {
-      const res = await sendOTP(phone);
+      const res = await sendOTP(email);
       if (res?.success) {
         setOtp(['', '', '', '', '', '']);
         setResendTimer(30);
@@ -152,11 +159,11 @@ const OTPVerificationScreen = ({ navigation, route }) => {
               <Text style={[styles.iconText, isSmall && styles.iconTextSmall]}>OTP</Text>
             </View>
 
-            <Text style={[styles.title, isSmall && styles.titleSmall]}>Verify your number</Text>
+            <Text style={[styles.title, isSmall && styles.titleSmall]}>Verify your email</Text>
             <Text style={styles.subtitle}>
               Enter the 6-digit code sent to
             </Text>
-            <Text style={styles.phone}>{phone}</Text>
+            <Text style={styles.phone}>{email}</Text>
           </View>
 
           {/* OTP INPUT */}
@@ -176,7 +183,6 @@ const OTPVerificationScreen = ({ navigation, route }) => {
                   digit && styles.otpFilled,
                 ]}
                 keyboardType="number-pad"
-                maxLength={1}
                 selectTextOnFocus
               />
             ))}
@@ -218,10 +224,10 @@ const OTPVerificationScreen = ({ navigation, route }) => {
           {/* CHANGE NUMBER */}
           <TouchableOpacity
             style={styles.changeButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.replace('Login')}
           >
             <Text style={styles.changeText}>
-              Change phone number
+              Change email address
             </Text>
           </TouchableOpacity>
         </View>

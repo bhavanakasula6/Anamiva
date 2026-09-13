@@ -1,9 +1,9 @@
 const { sendOTP, verifyOTP } = require('../config/otp');
 
-exports.sendOtpToPhone = async (phone) => {
-  await sendOTP(phone);
+exports.sendOtpToEmail = async (email) => {
+  await sendOTP(email);
 };
 
-exports.verifyPhoneOtp = async (phone, otp) => {
-  return await verifyOTP(phone, otp);
+exports.verifyEmailOtp = async (email, otp) => {
+  return await verifyOTP(email, otp);
 };

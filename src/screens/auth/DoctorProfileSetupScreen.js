@@ -24,7 +24,7 @@ import { USER_ROLES, SPECIALIZATIONS, GENDERS, INDIAN_STATES, CITIES_BY_STATE } 
 import Icon from '../../components/Icon';
 
 const DoctorProfileSetupScreen = ({ navigation, route }) => {
-  const { phone = '', role = 'doctor' } = route.params || {};
+  const { email = '', role = 'doctor' } = route.params || {};
   const { completeProfile } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
@@ -75,7 +75,7 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
 };
 
   const handleBack = () => {
-    navigation.replace('RoleSelection', { phone });
+    navigation.replace('RoleSelection', { email });
   };
 
   const validate = () => {
@@ -113,7 +113,7 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
     try {
       const profileData = {
         ...formData,
-        phone,
+        email,
         role: USER_ROLES.DOCTOR,
         fullName: `Dr. ${formData.firstName} ${formData.lastName}`,
         phoneVerified: true,

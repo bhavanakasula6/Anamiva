@@ -55,15 +55,15 @@ const appendUploadFile = (formData, fieldName, file, fallbackName) => {
 // ============================================
 
 export const authAPI = {
-  // Send OTP to phone number
-  sendOTP: async (phone) => {
-    const response = await httpClient.post('/auth/send-otp', { phone });
+  // Send OTP to email
+  sendOTP: async (email) => {
+    const response = await httpClient.post('/auth/send-otp', { email });
     return response;
   },
 
   // Verify OTP
-  verifyOTP: async (phone, otp) => {
-    const response = await httpClient.post('/auth/verify-otp', { phone, otp });
+  verifyOTP: async (email, otp) => {
+    const response = await httpClient.post('/auth/verify-otp', { email, otp });
 
     // Store token if login successful (existing user)
     if (response.success && response.token) {
@@ -82,8 +82,8 @@ export const authAPI = {
   },
 
   // Select role (for new users)
-  selectRole: async (phone, role) => {
-    const response = await httpClient.post('/auth/select-role', { phone, role });
+  selectRole: async (email, role) => {
+    const response = await httpClient.post('/auth/select-role', { email, role });
     return response;
   },
 

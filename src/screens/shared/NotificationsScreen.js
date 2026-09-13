@@ -3,7 +3,7 @@
  * Display user notifications
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -32,49 +32,30 @@ import Icon from '../../components/Icon';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { usePatient } from '../../contexts/PatientContext';
+import { useDoctor } from '../../contexts/DoctorContext';
 
 const NotificationsScreen = ({ navigation }) => {
   const { isPatient } = useAuth();
+
+  const patientContext = usePatient() || {};
+  const doctorContext = useDoctor() || {};
+  const notificationContext = isPatient() ? patientContext : doctorContext;
 
   const {
     requests = [],
     loadRequests,
     approveRequest,
     denyRequest,
-  } = usePatient() || {};
+    notifications = [],
+    loadNotifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+  } = notificationContext;
 
   useEffect(() => {
-    if (isPatient()) {
-      loadRequests();
-    }
-  }, [isPatient]);
-
-  const [notifications] = useState([
-    {
-      id: 1,
-      type: 'appointment',
-      title: 'Appointment Reminder',
-      message: 'You have an appointment tomorrow at 10:00 AM',
-      time: '2 hours ago',
-      read: false,
-    },
-    {
-      id: 2,
-      type: 'medication',
-      title: 'Medication Reminder',
-      message: 'Time to take your medication',
-      time: '5 hours ago',
-      read: false,
-    },
-    {
-      id: 3,
-      type: 'general',
-      title: 'Welcome to MedApp',
-      message: 'Thank you for joining MedApp',
-      time: '1 day ago',
-      read: true,
-    },
-  ]);
+    loadNotifications?.();
+    if (isPatient()) loadRequests?.();
+  }, []);
 
   const getNotificationIcon = (type) => {
     switch (type) {
@@ -108,7 +89,8 @@ const NotificationsScreen = ({ navigation }) => {
           {notifications.length > 0 ? (
             notifications.map((notification) => (
               <Card
-                key={notification.id}
+                key={notification.id || notification._id}
+                onPress={() => !notification.read && markNotificationAsRead?.(notification.id || notification._id)}
                 style={[
                   styles.notificationCard,
                   !notification.read && styles.unreadCard,
@@ -141,7 +123,7 @@ const NotificationsScreen = ({ navigation }) => {
                       style={styles.notificationTime}
                       numberOfLines={1}
                     >
-                      {notification.time}
+                      {new Date(notification.createdAt).toLocaleString()}
                     </Text>
                   </View>
 
@@ -162,6 +144,16 @@ const NotificationsScreen = ({ navigation }) => {
                 No notifications
               </Text>
             </View>
+          )}
+
+          {notifications.length > 0 && notifications.some(notification => !notification.read) && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() => markAllNotificationsAsRead?.()}
+            >
+              Mark all as read
+            </Button>
           )}
 
           {/* ACCESS REQUESTS – PATIENT ONLY */}
