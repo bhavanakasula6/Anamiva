@@ -41,7 +41,7 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '',
+    email: email || '',
     gender: '',
     specialization: '',
     qualifications: '',

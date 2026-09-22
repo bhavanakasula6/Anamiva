@@ -4,11 +4,12 @@
  */
 
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useAuth } from '../contexts/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
 import { Loading } from '../components/common';
 
 import AuthNavigator from './AuthNavigator';
@@ -49,6 +50,13 @@ const linking = {
 
 const RootNavigator = () => {
   const { isAuthenticated, user, loading } = useAuth();
+  const { setNavigationRef } = useSocket();
+  const navigationRef = useNavigationContainerRef();
+
+  React.useEffect(() => {
+    setNavigationRef(navigationRef);
+    return () => setNavigationRef(null);
+  }, [navigationRef, setNavigationRef]);
 
   if (loading) {
     return <Loading fullScreen text="Loading..." />;
@@ -56,7 +64,7 @@ const RootNavigator = () => {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer linking={linking}>
+      <NavigationContainer ref={navigationRef} linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!isAuthenticated ? (
             // Auth Stack

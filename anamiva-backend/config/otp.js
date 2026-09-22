@@ -12,10 +12,17 @@ const {
 
 const client = redis.createClient({ url: REDIS_URL });
 client.on("error", err => console.error("Redis Error:", err.message));
-(async () => {
-  await client.connect();
-  console.log("Redis connected");
-})();
+const redisReady = client.connect()
+  .then(() => console.log("Redis connected"))
+  .catch((error) => {
+    console.error("Redis connection failed:", error.message);
+    throw error;
+  });
+
+const ensureRedis = async () => {
+  await redisReady;
+  if (!client.isReady) throw new Error("OTP service is temporarily unavailable");
+};
 
 const ses = new SESv2Client({ region: AWS_REGION });
 const OTP_TTL = Number(OTP_EXPIRES_IN) || 300;
@@ -62,6 +69,7 @@ const sendEmailOtp = async (email, otp) => {
 };
 
 const sendOTP = async email => {
+  await ensureRedis();
   const normalized = normalizeEmail(email);
   if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
     const error = new Error("Enter a valid email address");
@@ -72,7 +80,11 @@ const sendOTP = async email => {
   const key = emailKey(normalized);
   const lockKey = `otp_inflight:${key}`;
   const lockAcquired = await client.set(lockKey, "1", { NX: true, EX: 10 });
-  if (!lockAcquired) return true;
+  if (!lockAcquired) {
+    const error = new Error("An OTP is already being sent. Please wait a moment and try again.");
+    error.statusCode = 429;
+    throw error;
+  }
 
   try {
     const rateKey = `otp_rate:${key}`;
@@ -85,7 +97,18 @@ const sendOTP = async email => {
 
     const otp = makeOtp();
     await client.set(`otp:${key}`, hashOtp(otp), { EX: OTP_TTL });
-    await sendEmailOtp(normalized, otp);
+    try {
+      await sendEmailOtp(normalized, otp);
+    } catch (error) {
+      console.error("AWS SES OTP send failed:", {
+        name: error.name,
+        code: error.code,
+        message: error.message,
+        statusCode: error.$metadata?.httpStatusCode,
+        requestId: error.$metadata?.requestId,
+      });
+      throw error;
+    }
     const newCount = await client.incr(rateKey);
     if (newCount === 1) await client.expire(rateKey, 3600);
     console.log(`Email OTP sent successfully to ${normalized}`);
@@ -96,6 +119,7 @@ const sendOTP = async email => {
 };
 
 const verifyOTP = async (email, otp) => {
+  await ensureRedis();
   const normalized = normalizeEmail(email);
   if (!normalized || !otp) return false;
 

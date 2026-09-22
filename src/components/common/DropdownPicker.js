@@ -82,7 +82,12 @@ const DropdownPicker = ({
                 {/* Header */}
                 <View style={styles.sheetHeader}>
                   <Text style={styles.sheetTitle}>{label || 'Select'}</Text>
-                  <TouchableOpacity onPress={() => setVisible(false)}>
+                  <TouchableOpacity
+                    onPress={() => setVisible(false)}
+                    style={styles.closeButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close selector"
+                  >
                     <Icon name="x" size={22} color={colors.gray[600]} />
                   </TouchableOpacity>
                 </View>
@@ -100,7 +105,12 @@ const DropdownPicker = ({
                       placeholderTextColor={colors.gray[400]}
                     />
                     {search ? (
-                      <TouchableOpacity onPress={() => setSearch('')}>
+                      <TouchableOpacity
+                        onPress={() => setSearch('')}
+                        style={styles.clearSearchButton}
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear search"
+                      >
                         <Icon name="x" size={16} color={colors.gray[400]} />
                       </TouchableOpacity>
                     ) : null}
@@ -167,6 +177,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 52,
     borderWidth: 1,
     borderColor: colors.gray[300],
     borderRadius: 8,
@@ -224,6 +235,12 @@ const styles = StyleSheet.create({
     fontFamily: typography.fontFamily.bold,
     color: colors.gray[900],
   },
+  closeButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   searchContainer: {
     flexDirection: 'row',
@@ -241,6 +258,12 @@ const styles = StyleSheet.create({
     color: colors.gray[900],
     paddingVertical: 0,
   },
+  clearSearchButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   optionsList: {
     paddingHorizontal: spacing.md,
@@ -249,6 +272,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: 52,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,

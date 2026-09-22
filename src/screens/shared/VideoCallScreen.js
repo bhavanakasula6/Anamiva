@@ -96,6 +96,7 @@ const NativeVideoCallScreen = ({ route, navigation }) => {
 
   // Refs
   const peerConnection = useRef(null);
+  const localStreamRef = useRef(null);
   const timerRef = useRef(null);
   const isCleanedUp = useRef(false);
 
@@ -134,6 +135,7 @@ const NativeVideoCallScreen = ({ route, navigation }) => {
         },
       });
       setLocalStream(stream);
+      localStreamRef.current = stream;
       return stream;
     } catch (err) {
       console.error('Failed to get media devices:', err);
@@ -246,8 +248,9 @@ const NativeVideoCallScreen = ({ route, navigation }) => {
     }
 
     // Stop local stream tracks
-    if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
     }
 
     // Leave socket room
@@ -392,8 +395,12 @@ const NativeVideoCallScreen = ({ route, navigation }) => {
           peerConnection.current.close();
           peerConnection.current = null;
         }
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
+        }
         socketService.leaveCallRoom(roomId);
-        socketService.removeAllListeners();
+        socketService.removeVideoCallListeners();
         InCallManager.stop();
       }
     };

@@ -99,6 +99,7 @@ const Button = ({
           borderColor: variantConfig.borderColor,
           paddingVertical: sizeConfig.paddingVertical,
           paddingHorizontal: sizeConfig.paddingHorizontal,
+          minHeight: size === 'sm' ? 40 : 44,
         },
         fullWidth && styles.fullWidth,
         isDisabled && styles.disabled,
