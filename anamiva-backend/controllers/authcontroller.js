@@ -1,5 +1,14 @@
 const User = require("../models/user");
 const Doctor = require("../models/doctor");
+const Appointment = require("../models/appointment");
+const AccessRequest = require("../models/accessrequest");
+const Consent = require("../models/consent");
+const EmergencyRequest = require("../models/emergencyrequest");
+const MedicalRecord = require("../models/medicalrecord");
+const Medication = require("../models/medication");
+const Notification = require("../models/notification");
+const ChatMessage = require("../models/chatmessage");
+const Analytics = require("../models/analytics");
 const jwt = require("jsonwebtoken");
 const { sendOTP, verifyOTP } = require("../config/otp");
 const { JWT_SECRET, JWT_EXPIRES_IN } = require("../config/env");
@@ -355,6 +364,60 @@ exports.getMe = async (req, res) => {
 ===================== */
 exports.logout = async (req, res) => {
   res.json({ success: true, message: "Logged out successfully" });
+};
+
+/* =====================
+   DELETE ACCOUNT
+===================== */
+exports.deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId).select('_id role');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Account not found' });
+    }
+
+    const doctor = user.role === 'doctor'
+      ? await Doctor.findOne({ userId }).select('_id')
+      : null;
+    const doctorId = doctor?._id;
+    const appointmentFilter = doctorId
+      ? { $or: [{ patientId: userId }, { doctorId }] }
+      : { patientId: userId };
+    const emergencyRequests = await EmergencyRequest.find(
+      doctorId ? { $or: [{ patientId: userId }, { doctorId }] } : { patientId: userId }
+    ).select('_id');
+
+    await Promise.all([
+      Appointment.deleteMany(appointmentFilter),
+      MedicalRecord.deleteMany(doctorId ? { $or: [{ patientId: userId }, { doctorId }] } : { patientId: userId }),
+      Medication.deleteMany(doctorId ? { $or: [{ patientId: userId }, { doctorId }] } : { patientId: userId }),
+      EmergencyRequest.deleteMany(doctorId
+        ? { $or: [{ patientId: userId }, { doctorId }] }
+        : { patientId: userId }),
+      AccessRequest.deleteMany(doctorId
+        ? { $or: [{ patientId: userId }, { doctorId }, { doctorUserId: userId }] }
+        : { patientId: userId }),
+      Consent.deleteMany(doctorId ? { $or: [{ patientId: userId }, { doctorId }] } : { patientId: userId }),
+      Notification.deleteMany({ userId }),
+      ChatMessage.deleteMany({
+        $or: [
+          { senderId: userId },
+          ...(emergencyRequests.length
+            ? [{ emergencyId: { $in: emergencyRequests.map(({ _id }) => _id) } }]
+            : []),
+        ],
+      }),
+      ...(doctorId ? [Analytics.deleteMany({ doctorId }), Doctor.deleteOne({ _id: doctorId })] : []),
+      User.deleteOne({ _id: userId }),
+    ]);
+
+    res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (err) {
+    console.error('Delete account error:', err);
+    res.status(500).json({ success: false, message: 'Unable to delete account. Please try again.' });
+  }
 };
 
 /* =====================

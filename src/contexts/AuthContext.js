@@ -185,6 +185,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const deleteAccount = async () => {
+    try {
+      const response = await authAPI.deleteAccount();
+      if (response.success) {
+        setUser(null);
+        api.setCurrentUser(null);
+        setToken(null);
+        setIsAuthenticated(false);
+        await storage.logout();
+      }
+      return response;
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      return { success: false, message: 'Failed to delete account' };
+    }
+  };
+
   // Update profile
   const updateProfile = async (updates) => {
     try {
@@ -242,6 +259,7 @@ export const AuthProvider = ({ children }) => {
     completeProfile,
     login,
     logout: logoutUser,
+    deleteAccount,
     updateProfile,
     refreshUser,
   };

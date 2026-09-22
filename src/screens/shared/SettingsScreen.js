@@ -21,7 +21,7 @@ import { Card, Header, Button } from '../../components/common';
 import Icon from '../../components/Icon';
 
 const SettingsScreen = ({ navigation }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount } = useAuth();
   const isDoctor = user?.role === 'doctor';
 
   const handleLogout = async () => {
@@ -37,6 +37,27 @@ const SettingsScreen = ({ navigation }) => {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Logout', style: 'destructive', onPress: logout },
     ]);
+  };
+
+  const handleDeleteAccount = async () => {
+    const message = 'This permanently deletes your profile, appointments, medical records, and notifications. This action cannot be undone.';
+
+    if (Platform.OS === 'web') {
+      if (!window.confirm(`${message}\n\nContinue?`)) return;
+    } else {
+      const confirmed = await new Promise((resolve) => {
+        Alert.alert('Delete account?', message, [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Delete permanently', style: 'destructive', onPress: () => resolve(true) },
+        ]);
+      });
+      if (!confirmed) return;
+    }
+
+    const response = await deleteAccount();
+    if (!response.success) {
+      Alert.alert('Unable to delete account', response.message || 'Please try again.');
+    }
   };
 
   const SettingItem = ({ icon, title, subtitle, onPress }) => (
@@ -154,6 +175,15 @@ const SettingsScreen = ({ navigation }) => {
             Logout
           </Button>
 
+          <TouchableOpacity
+            style={styles.deleteAccountButton}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.7}
+          >
+            <Icon name="trash" size={17} color={colors.danger[500]} />
+            <Text style={styles.deleteAccountText}>Delete account</Text>
+          </TouchableOpacity>
+
           <View style={{ height: spacing.xl }} />
         </View>
       </ScrollView>
@@ -222,6 +252,19 @@ const styles = StyleSheet.create({
     marginLeft: spacing.lg + 40 + spacing.md,
   },
   logoutButton: { borderColor: colors.primary[500] },
+  deleteAccountButton: {
+    minHeight: 44,
+    marginTop: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  deleteAccountText: {
+    color: colors.danger[500],
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.semiBold,
+  },
 });
 
 export default SettingsScreen;

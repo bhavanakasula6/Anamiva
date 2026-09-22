@@ -12,6 +12,7 @@ router.post("/complete-profile", protectTemp, authController.completeProfile);
 
 router.get("/me", protectTemp, authController.getMe);
 router.post("/logout", protectTemp, authController.logout);
+router.delete("/account", protectTemp, authController.deleteAccount);
 router.put("/profile", protectTemp, authController.updateProfile);
 router.post("/upload-avatar", protectTemp, upload.single("avatar"), authController.uploadAvatar);
 

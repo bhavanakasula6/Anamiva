@@ -126,6 +126,15 @@ export const authAPI = {
     return response;
   },
 
+  deleteAccount: async () => {
+    const response = await httpClient.delete('/auth/account');
+    if (response.success) {
+      await removeToken();
+      currentUser = null;
+    }
+    return response;
+  },
+
   // Update profile
   updateProfile: async (updates) => {
     const response = await httpClient.put('/auth/profile', updates);
