@@ -6,7 +6,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Patient screens
@@ -116,6 +115,7 @@ const PatientNavigator = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        tabBarPosition: 'bottom',
         tabBarActiveTintColor: colors.primary[500],
         tabBarInactiveTintColor: colors.gray[400],
         tabBarStyle: {

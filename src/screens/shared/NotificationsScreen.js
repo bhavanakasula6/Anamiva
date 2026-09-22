@@ -3,7 +3,7 @@
  * Display user notifications
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -51,11 +51,20 @@ const NotificationsScreen = ({ navigation }) => {
     markNotificationAsRead,
     markAllNotificationsAsRead,
   } = notificationContext;
+  const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(
+    Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window) || window.Notification.permission === 'granted'
+  );
 
   useEffect(() => {
     loadNotifications?.();
     if (isPatient()) loadRequests?.();
   }, []);
+
+  const enableBrowserNotifications = async () => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window)) return;
+    const permission = await window.Notification.requestPermission();
+    setBrowserNotificationsEnabled(permission === 'granted');
+  };
 
   const getNotificationIcon = (type) => {
     switch (type) {
@@ -85,6 +94,18 @@ const NotificationsScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.content, Platform.OS === 'web' && styles.webContent]}>
+          {Platform.OS === 'web' && !browserNotificationsEnabled && (
+            <Button
+              size="sm"
+              variant="outline"
+              icon="bell"
+              onPress={enableBrowserNotifications}
+              style={styles.browserNotificationButton}
+            >
+              Enable browser notifications
+            </Button>
+          )}
+
           {/* NOTIFICATIONS */}
           {notifications.length > 0 ? (
             notifications.map((notification) => (
@@ -236,6 +257,11 @@ const styles = StyleSheet.create({
   notificationContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+
+  browserNotificationButton: {
+    alignSelf: 'flex-start',
+    marginBottom: spacing.md,
   },
 
   notificationIcon: {

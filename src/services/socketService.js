@@ -209,6 +209,18 @@ const socketService = {
     socket.on('emergency-accepted', callback);
   },
 
+  removeVideoCallListeners: () => {
+    if (!socket) return;
+    socket.off('call-ended');
+    socket.off('peer-joined');
+    socket.off('peer-left');
+    socket.off('webrtc-offer');
+    socket.off('webrtc-answer');
+    socket.off('webrtc-ice-candidate');
+    socket.off('peer-toggle-audio');
+    socket.off('peer-toggle-video');
+  },
+
   /**
    * Remove all event listeners
    */

@@ -157,7 +157,7 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '',
+    email: email || '',
     dateOfBirth: '',
     gender: '',
     bloodGroup: '',

@@ -129,6 +129,7 @@ const styles = StyleSheet.create({
 
   side: {
     width: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -142,6 +143,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.typography.fontSizes.lg,
     fontFamily: theme.typography.fontFamily.semiBold,
+    maxWidth: '100%',
+    textAlign: 'center',
   },
 
   subtitle: {

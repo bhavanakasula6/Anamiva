@@ -830,6 +830,11 @@ exports.startCall = async (req, res) => {
     const appointment = await Appointment.findById(req.params.appointmentId);
     if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
+    const doctorProfile = await Doctor.findOne({ userId: req.user.id });
+    if (!doctorProfile || appointment.doctorId.toString() !== doctorProfile._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to start this call' });
+    }
+
     if (appointment.type !== 'online') {
       return res.status(400).json({ success: false, message: 'Video calls are only for online appointments' });
     }
@@ -846,13 +851,13 @@ exports.startCall = async (req, res) => {
     const { getIO } = require('../sockets/socket');
     try {
       const io = getIO();
-      const doctorProfile = await Doctor.findById(appointment.doctorId).populate('userId');
+      const populatedDoctor = await Doctor.findById(appointment.doctorId).populate('userId');
       io.to(`user_${appointment.patientId.toString()}`).emit('incoming-call', {
         appointmentId: appointment._id.toString(),
         roomId: appointment.videoCallRoomId,
         caller: {
           id: appointment.doctorId.toString(),
-          name: getSafeName(doctorProfile?.userId || doctorProfile),
+          name: getSafeName(populatedDoctor?.userId || populatedDoctor),
           role: 'doctor',
         },
       });
@@ -877,6 +882,10 @@ exports.joinCall = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.appointmentId);
     if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+
+    if (appointment.patientId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to join this call' });
+    }
 
     if (!appointment.videoCallRoomId) {
       return res.status(400).json({ success: false, message: 'No active call for this appointment' });
@@ -903,6 +912,15 @@ exports.endCall = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.appointmentId);
     if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+
+    const doctorProfile = req.user.role === 'doctor'
+      ? await Doctor.findOne({ userId: req.user.id })
+      : null;
+    const isParticipant = appointment.patientId.toString() === req.user.id
+      || doctorProfile?._id?.toString() === appointment.doctorId.toString();
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: 'Not authorized to end this call' });
+    }
 
     appointment.callStatus = 'ended';
     appointment.callEndedAt = new Date();

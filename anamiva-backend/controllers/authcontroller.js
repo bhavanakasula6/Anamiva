@@ -44,10 +44,21 @@ exports.sendOtp = async (req, res) => {
       message: `OTP sent successfully to ${email}`
     });
   } catch (err) {
-    const status = err.statusCode || 500;
+    const providerMessages = {
+      MessageRejected: "AWS SES rejected this email. Verify the sender and recipient in the SES region.",
+      MailFromDomainNotVerifiedException: "The AWS SES sender identity is not verified in the configured region.",
+      ConfigurationSetDoesNotExistException: "The configured AWS SES configuration set does not exist in this region.",
+      AccessDeniedException: "AWS SES denied the send request. Check the IAM permissions.",
+      TooManyRequestsException: "AWS SES is rate-limiting requests. Please try again shortly.",
+    };
+    const status = err.statusCode || (
+      ['TooManyRequestsException'].includes(err.name) ? 429 :
+      ['MessageRejected', 'MailFromDomainNotVerifiedException', 'ConfigurationSetDoesNotExistException'].includes(err.name) ? 400 :
+      500
+    );
     res.status(status).json({
       success: false,
-      message: err.message
+      message: providerMessages[err.name] || err.message || "Unable to send OTP. Please try again."
     });
   }
 };

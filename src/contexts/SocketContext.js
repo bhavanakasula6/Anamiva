@@ -4,6 +4,7 @@
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
 import { useAuth } from './AuthContext';
@@ -36,6 +37,18 @@ export const SocketProvider = ({ children }) => {
     const handleCallEnded = () => {
       setIncomingCall(null);
     };
+    const handleNotificationCreated = (notification) => {
+      if (
+        Platform.OS === 'web' &&
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        window.Notification.permission === 'granted'
+      ) {
+        new window.Notification(notification?.title || 'New notification', {
+          body: notification?.message || 'You have a new update in Anamiva.',
+        });
+      }
+    };
 
     if (userId && token) {
       socketService.connect(userId, token);
@@ -45,6 +58,8 @@ export const SocketProvider = ({ children }) => {
 
       // Listen for call ended (dismiss modal if showing)
       socketService.onCallEnded(handleCallEnded);
+      const socket = socketService.getSocket();
+      socket?.on('notification-created', handleNotificationCreated);
     }
 
     return () => {
@@ -53,6 +68,7 @@ export const SocketProvider = ({ children }) => {
       if (sock) {
         sock.off('incoming-call', handleIncomingCall);
         sock.off('call-ended', handleCallEnded);
+        sock.off('notification-created', handleNotificationCreated);
       }
       socketService.disconnect();
     };
@@ -74,11 +90,17 @@ export const SocketProvider = ({ children }) => {
 
     // Navigate to video call screen
     if (navigationRef.current) {
-      navigationRef.current.navigate('VideoCall', {
-        appointmentId,
-        roomId: videoCallRoomId,
-        isCaller: false,
-        otherPartyName: doctorName,
+      navigationRef.current.navigate('Main', {
+        screen: 'Home',
+        params: {
+          screen: 'VideoCall',
+          params: {
+            appointmentId,
+            roomId: videoCallRoomId,
+            isCaller: false,
+            otherPartyName: doctorName,
+          },
+        },
       });
     }
   }, [incomingCall]);
