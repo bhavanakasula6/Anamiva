@@ -276,7 +276,7 @@ const PatientProfileSetupScreen = ({ navigation, route }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          style={isWeb && styles.webScroll}
+          style={[styles.scrollView, isWeb && styles.webScroll]}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -564,6 +564,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: spacing.xl,
+  },
+  scrollView: {
+    flex: 1,
   },
   webScroll: {
     flex: 1,
@@ -576,7 +580,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xl,
-    paddingBottom: spacing['2xl'],
+    paddingBottom: spacing['4xl'],
   },
   webContent: {
     width: '100%',
