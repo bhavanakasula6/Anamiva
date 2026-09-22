@@ -215,12 +215,15 @@ const styles = StyleSheet.create({
   },
   webContainer: {
     backgroundColor: '#F1FBF8',
-    height: '100vh',
-    maxHeight: '100vh',
+    height: '100dvh',
+    maxHeight: '100dvh',
+    minHeight: 0,
     overflow: 'hidden',
   },
   webScroll: {
     flex: 1,
+    flexShrink: 1,
+    minHeight: 0,
     overflowY: 'auto',
     WebkitOverflowScrolling: 'touch',
   },
