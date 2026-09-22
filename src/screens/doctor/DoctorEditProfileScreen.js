@@ -279,7 +279,7 @@ const DoctorEditProfileScreen = ({ navigation }) => {
             >
                 <ScrollView
                     style={styles.scrollView}
-                    contentContainerStyle={isWeb && styles.webScrollContent}
+                    contentContainerStyle={[styles.contentContainer, isWeb && styles.webScrollContent]}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
                 >
@@ -537,6 +537,10 @@ const styles = StyleSheet.create({
     scrollView: {
         flex: 1,
     },
+    contentContainer: {
+        flexGrow: 1,
+        paddingBottom: spacing['4xl'],
+    },
     webScrollContent: {
         width: '100%',
         maxWidth: 1180,
@@ -544,7 +548,7 @@ const styles = StyleSheet.create({
     },
     content: {
         padding: spacing.lg,
-        paddingBottom: spacing['2xl'],
+        paddingBottom: spacing['4xl'],
     },
     avatarSection: {
         alignItems: 'center',

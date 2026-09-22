@@ -94,7 +94,7 @@ const RoleSelectionScreen = ({ navigation, route }) => {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={[styles.container, isWeb && styles.webContainer]}>
         <ScrollView
-          style={isWeb && styles.webScroll}
+          style={[styles.scrollView, isWeb && styles.webScroll]}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[
             styles.scrollContent,
@@ -223,6 +223,9 @@ const styles = StyleSheet.create({
     flex: 1,
     overflowY: 'auto',
     WebkitOverflowScrolling: 'touch',
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
     paddingHorizontal: spacing.xl,
@@ -370,6 +373,7 @@ const styles = StyleSheet.create({
   },
 
   footer: {
+    flexShrink: 0,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
     paddingBottom: spacing.xl,

@@ -164,7 +164,7 @@ const EditProfileScreen = ({ navigation }) => {
 
       <ScrollView
         style={styles.container}
-        contentContainerStyle={isWeb && styles.webScrollContent}
+        contentContainerStyle={[styles.contentContainer, isWeb && styles.webScrollContent]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -445,12 +445,17 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
+    paddingBottom: spacing['4xl'],
+  },
+  contentContainer: {
+    flexGrow: 1,
+    paddingBottom: spacing['4xl'],
   },
   webScrollContent: {
     width: '100%',
     maxWidth: 920,
     alignSelf: 'center',
-    paddingBottom: spacing['2xl'],
+    paddingBottom: spacing['4xl'],
   },
   avatarSection: {
     alignItems: 'center',
