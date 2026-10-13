@@ -29,6 +29,7 @@ const HomeScreen = ({ navigation }) => {
     loadAppointments,
     loadMedicalRecords,
     loadActiveMedications,
+    loadNotifications,
     requests,
     loadRequests,
     approveRequest,
@@ -44,6 +45,7 @@ const HomeScreen = ({ navigation }) => {
       loadMedicalRecords();
       loadActiveMedications();
       loadRequests();
+      loadNotifications();
     }, [])
   );
 

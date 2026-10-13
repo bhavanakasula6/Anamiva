@@ -25,6 +25,9 @@ const appointmentSchema = new mongoose.Schema(
     notes: String,
     diagnosis: String,
     cancelReason: String,
+    rating: { type: Number, min: 1, max: 5 },
+    review: String,
+    ratedAt: Date,
     refund: {
       amount: Number,
       status: { type: String, enum: ['pending', 'processed'], default: 'pending' },

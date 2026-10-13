@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import {
   Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -40,7 +41,7 @@ import { pickImage } from '../../utils/imagePicker';
 import { authAPI } from '../../services/api';
 
 const EditProfileScreen = ({ navigation }) => {
-  const { user, updateProfile, refreshUser } = useAuth();
+  const { user, updateProfile, refreshUser, sendOTP, changeEmail } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const isTabletUp = width >= 768;
@@ -63,6 +64,11 @@ const EditProfileScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [avatarUri, setAvatarUri] = useState(user?.avatar || user?.profilePicture || null);
+  const [emailModalVisible, setEmailModalVisible] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailStep, setEmailStep] = useState('email');
+  const [emailLoading, setEmailLoading] = useState(false);
 
   const handlePickImage = async () => {
     try {
@@ -84,6 +90,34 @@ const EditProfileScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const startEmailChange = () => {
+    setNewEmail('');
+    setEmailOtp('');
+    setEmailStep('email');
+    setEmailModalVisible(true);
+  };
+
+  const sendEmailChangeOtp = async () => {
+    setEmailLoading(true);
+    const response = await sendOTP(newEmail.trim().toLowerCase());
+    setEmailLoading(false);
+    if (response.success) setEmailStep('otp');
+    else Alert.alert('Unable to send OTP', response.message || 'Please try again.');
+  };
+
+  const verifyEmailChange = async () => {
+    setEmailLoading(true);
+    const response = await changeEmail(newEmail.trim().toLowerCase(), emailOtp.trim());
+    setEmailLoading(false);
+    if (response.success) {
+      setFormData(prev => ({ ...prev, email: response.user.email }));
+      setEmailModalVisible(false);
+      Alert.alert('Success', 'Email changed successfully.');
+    } else {
+      Alert.alert('Unable to change email', response.message || 'Invalid or expired OTP.');
     }
   };
 
@@ -220,13 +254,14 @@ const EditProfileScreen = ({ navigation }) => {
             <Input
               label="Email"
               value={formData.email}
-              onChangeText={text =>
-                setFormData({ ...formData, email: text })
-              }
               placeholder="Enter email"
               keyboardType="email-address"
               autoCapitalize="none"
+              disabled
             />
+            <TouchableOpacity style={styles.changeEmailButton} onPress={startEmailChange}>
+              <Text style={styles.changeEmailText}>Change email</Text>
+            </TouchableOpacity>
 
             <Input
               label="Phone"
@@ -396,6 +431,28 @@ const EditProfileScreen = ({ navigation }) => {
           </Button>
         </View>
       </ScrollView>
+
+      <Modal visible={emailModalVisible} transparent animationType="fade" onRequestClose={() => setEmailModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.emailModal}>
+            <Text style={styles.modalTitle}>Change email</Text>
+            <Text style={styles.modalMessage}>
+              {emailStep === 'email' ? 'Enter your new email address.' : `Enter the OTP sent to ${newEmail}.`}
+            </Text>
+            {emailStep === 'email' ? (
+              <Input label="New email" value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+            ) : (
+              <Input label="OTP" value={emailOtp} onChangeText={value => setEmailOtp(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" />
+            )}
+            <Button fullWidth loading={emailLoading} onPress={emailStep === 'email' ? sendEmailChangeOtp : verifyEmailChange}>
+              {emailStep === 'email' ? 'Send OTP' : 'Verify and change email'}
+            </Button>
+            <TouchableOpacity style={styles.modalCancel} onPress={() => setEmailModalVisible(false)}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Android DatePicker */}
       {showDatePicker && Platform.OS === 'android' && (
@@ -611,6 +668,14 @@ const styles = StyleSheet.create({
   saveButton: {
     marginBottom: spacing.xl,
   },
+  changeEmailButton: { alignSelf: 'flex-start', minHeight: 40, justifyContent: 'center', marginTop: -spacing.sm, marginBottom: spacing.sm },
+  changeEmailText: { color: colors.primary[600], fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.semiBold },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: spacing.lg },
+  emailModal: { backgroundColor: colors.white, borderRadius: borderRadius.xl, padding: spacing.xl },
+  modalTitle: { fontSize: typography.fontSize.xl, fontFamily: typography.fontFamily.bold, color: colors.gray[900], marginBottom: spacing.sm },
+  modalMessage: { fontSize: typography.fontSize.sm, color: colors.gray[600], marginBottom: spacing.lg },
+  modalCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.sm },
+  modalCancelText: { color: colors.gray[600], fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.semiBold },
   iosDatePickerOverlay: {
     position: 'absolute',
     bottom: 0,

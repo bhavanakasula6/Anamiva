@@ -87,6 +87,19 @@ export const authAPI = {
     return response;
   },
 
+  abandonIncompleteRegistration: async () => {
+    return httpClient.delete('/auth/incomplete-registration');
+  },
+
+  changeEmail: async (email, otp) => {
+    const response = await httpClient.post('/auth/change-email', { email, otp });
+    if (response.success && response.token) {
+      await setToken(response.token);
+      currentUser = response.user;
+    }
+    return response;
+  },
+
   // Complete profile (for new users)
   completeProfile: async (profileData) => {
     const response = await httpClient.post('/auth/complete-profile', profileData);
@@ -305,6 +318,10 @@ export const appointmentAPI = {
     return response;
   },
 
+  submitRating: async (appointmentId, rating, review = '') => {
+    return httpClient.post(`/appointments/${appointmentId}/rating`, { rating, review });
+  },
+
   // Create prescription
   createPrescription: async (appointmentId, prescriptionData) => {
     const response = await httpClient.post(`/appointments/${appointmentId}/prescription`, prescriptionData);
@@ -342,7 +359,7 @@ export const emergencyAPI = {
   },
 
   // Get nearby emergency requests (doctor only)
-  getNearbyEmergencyRequests: async (latitude, longitude, radius = 5) => {
+  getNearbyEmergencyRequests: async (latitude, longitude, radius = 50) => {
     const params = new URLSearchParams({
       latitude: latitude.toString(),
       longitude: longitude.toString(),

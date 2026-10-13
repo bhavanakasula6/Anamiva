@@ -132,7 +132,7 @@ exports.getActiveEmergency = async (req, res) => {
 ========================= */
 exports.getNearbyEmergencies = async (req, res) => {
   try {
-    const { latitude, longitude, radius = 5 } = req.query;
+    const { latitude, longitude, radius = 10 } = req.query;
 
     if (!latitude || !longitude) {
       return res.status(400).json({

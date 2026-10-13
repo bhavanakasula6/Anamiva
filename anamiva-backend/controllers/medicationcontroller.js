@@ -54,6 +54,10 @@ exports.addMedication = async (req, res) => {
 ========================= */
 exports.getMedications = async (req, res) => {
   try {
+    await Medication.updateMany(
+      { patientId: req.user.id, active: { $ne: false }, endDate: { $lt: new Date() } },
+      { $set: { active: false } }
+    );
     const medications = await Medication.find({ patientId: req.user.id })
       .populate({ path: 'doctorId', populate: { path: 'userId' } })
       .sort({ createdAt: -1 });
@@ -70,6 +74,10 @@ exports.getMedications = async (req, res) => {
 exports.getActiveMedications = async (req, res) => {
   try {
     const now = new Date();
+    await Medication.updateMany(
+      { patientId: req.user.id, active: { $ne: false }, endDate: { $lt: now } },
+      { $set: { active: false } }
+    );
     const filter = {
       patientId: req.user.id,
       active: { $ne: false },

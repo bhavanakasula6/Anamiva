@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -87,6 +88,8 @@ const RecordDetailsScreen = ({ route, navigation }) => {
   const [savingDate, setSavingDate] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   useFocusEffect(
     React.useCallback(() => {
@@ -174,31 +177,24 @@ const RecordDetailsScreen = ({ route, navigation }) => {
     Alert.alert('Error', 'Failed to verify record');
   };
 
-  const handleReject = () => {
-    Alert.alert(
-      'Reject Record',
-      'Are you sure you want to reject this record?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            setRejecting(true);
-            const response = await rejectRecord(record.id || record._id, 'Rejected by doctor');
-            setRejecting(false);
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) {
+      Alert.alert('Reason required', 'Please enter a reason for rejecting this record.');
+      return;
+    }
 
-            if (response?.success) {
-              setRecord(response.record);
-              navigation.goBack();
-              return;
-            }
+    setRejecting(true);
+    const response = await rejectRecord(record.id || record._id, rejectionReason.trim());
+    setRejecting(false);
 
-            Alert.alert('Error', 'Failed to reject record');
-          },
-        },
-      ]
-    );
+    if (response?.success) {
+      setRejectModalVisible(false);
+      setRecord(response.record);
+      navigation.goBack();
+      return;
+    }
+
+    Alert.alert('Error', 'Failed to reject record');
   };
 
   const attachmentUrls = Array.from(
@@ -272,6 +268,13 @@ const RecordDetailsScreen = ({ route, navigation }) => {
             </Text>
           </View>
         </Card>
+
+        {record.status === 'rejected' && record.rejectionReason ? (
+          <Card style={styles.rejectionCard}>
+            <Text style={styles.sectionTitle}>Rejection reason</Text>
+            <Text style={styles.bodyText}>{record.rejectionReason}</Text>
+          </Card>
+        ) : null}
 
         {/* ATTACHMENTS */}
         {attachmentUrls.length > 0 && (
@@ -390,7 +393,7 @@ const RecordDetailsScreen = ({ route, navigation }) => {
             <View style={styles.actionRow}>
               <Button
                 variant="outline"
-                onPress={handleReject}
+                onPress={() => setRejectModalVisible(true)}
                 loading={rejecting}
                 disabled={savingDate || verifying || rejecting}
               >
@@ -414,6 +417,32 @@ const RecordDetailsScreen = ({ route, navigation }) => {
             </View>
           </Card>
         )}
+
+        <Modal
+          visible={rejectModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setRejectModalVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.rejectModal}>
+              <Text style={styles.sectionTitle}>Reject record</Text>
+              <Text style={styles.bodyText}>Enter the reason. The patient will be able to see it.</Text>
+              <TextInput
+                style={styles.rejectionInput}
+                value={rejectionReason}
+                onChangeText={setRejectionReason}
+                placeholder="Reason for rejection"
+                placeholderTextColor={colors.gray[400]}
+                multiline
+              />
+              <View style={styles.actionRow}>
+                <Button variant="outline" onPress={() => setRejectModalVisible(false)}>Cancel</Button>
+                <Button variant="danger" loading={rejecting} onPress={handleReject}>Reject</Button>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* DOCTOR VIEW NOTICE */}
         {mode === 'DOCTOR_VERIFY' && (
@@ -590,6 +619,36 @@ const styles = StyleSheet.create({
   bodyText: {
     fontSize: typography.fontSize.sm,
     color: colors.gray[700],
+  },
+
+  rejectionCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.danger[500],
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+
+  rejectModal: {
+    padding: spacing.xl,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+  },
+
+  rejectionInput: {
+    minHeight: 100,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: borderRadius.md,
+    color: colors.gray[900],
+    textAlignVertical: 'top',
   },
 
   medItem: {

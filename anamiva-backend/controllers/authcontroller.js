@@ -176,6 +176,78 @@ exports.selectRole = async (req, res) => {
 };
 
 /* =====================
+   CLEAR INCOMPLETE REGISTRATION
+===================== */
+exports.abandonIncompleteRegistration = async (req, res) => {
+  try {
+    if (!req.user.isTemp || !req.user.email) {
+      return res.status(400).json({ success: false, message: 'Only an incomplete registration can be cleared' });
+    }
+
+    const result = await User.deleteOne({
+      email: normalizeEmail(req.user.email),
+      isProfileCompleted: { $ne: true },
+    });
+
+    res.json({
+      success: true,
+      deleted: result.deletedCount > 0,
+      message: 'Incomplete registration cleared',
+    });
+  } catch (err) {
+    console.error('Clear incomplete registration error:', err);
+    res.status(500).json({ success: false, message: 'Unable to clear the incomplete registration' });
+  }
+};
+
+/* =====================
+   CHANGE VERIFIED EMAIL
+===================== */
+exports.changeEmail = async (req, res) => {
+  try {
+    if (req.user.isTemp || !req.user.id) {
+      return res.status(401).json({ success: false, message: 'Please complete login before changing email' });
+    }
+
+    const email = normalizeEmail(req.body.email);
+    const { otp } = req.body;
+    if (!email || !otp || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: 'Valid email and OTP are required' });
+    }
+
+    const duplicate = await User.findOne({ email, _id: { $ne: req.user.id } }).select('_id');
+    if (duplicate) {
+      return res.status(409).json({ success: false, message: 'Email is already linked to another account' });
+    }
+
+    if (!(await verifyOTP(email, otp))) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: { email, emailVerified: true } },
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Account not found' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role, emailVerified: true },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({ success: true, user, token, message: 'Email changed successfully' });
+  } catch (err) {
+    console.error('Change email error:', err);
+    res.status(500).json({ success: false, message: 'Unable to change email. Please try again.' });
+  }
+};
+
+/* =====================
    COMPLETE PROFILE
 ===================== */
 exports.completeProfile = async (req, res) => {
@@ -368,6 +440,14 @@ exports.updateProfile = async (req, res) => {
     if (updates.email !== undefined) {
       updates.email = normalizeEmail(updates.email);
       if (!updates.email) delete updates.email;
+
+      const currentUser = await User.findById(req.user.id).select('email');
+      if (currentUser && updates.email !== normalizeEmail(currentUser.email)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Use the verified Change email flow to update your email address',
+        });
+      }
     }
 
     if (updates.phone !== undefined || updates.phoneNumber !== undefined) {

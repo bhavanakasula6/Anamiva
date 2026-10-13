@@ -41,6 +41,7 @@ const PatientRecordsScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [access, setAccess] = useState({ status: ACCESS_STATUS.NO_ACCESS, type: null });
+  const [accessScope, setAccessScope] = useState(null);
   const accessState = access.status;
   const consentType = access.type;
   const activeRequestId = access.requestId || requestId || null;
@@ -118,12 +119,9 @@ const PatientRecordsScreen = ({ route, navigation }) => {
 
     setAccess(resolved);
 
-    if (resolved.status === ACCESS_STATUS.GRANTED) {
-      const response = await getPatientMedicalRecords(patientId);
-      setRecords(response?.success ? response.records : []);
-    } else {
-      setRecords([]);
-    }
+    const response = await getPatientMedicalRecords(patientId);
+    setRecords(response?.success ? response.records : []);
+    setAccessScope(response?.accessScope || null);
 
     setLoading(false);
   };
@@ -293,7 +291,13 @@ const PatientRecordsScreen = ({ route, navigation }) => {
 
         {renderBanner()}
 
-        {accessState === ACCESS_STATUS.GRANTED && (
+        {(accessState === ACCESS_STATUS.GRANTED || accessScope === 'own-prescriptions') && (
+          <>
+          {accessScope === 'own-prescriptions' && (
+            <Text style={styles.ownPrescriptionNotice}>
+              Showing prescriptions prescribed by you. Other patient records require active consent.
+            </Text>
+          )}
           <FlatList
             data={records}
             keyExtractor={item => item.id}
@@ -310,7 +314,7 @@ const PatientRecordsScreen = ({ route, navigation }) => {
               />
             }
           />
-
+          </>
         )}
         </View>
       </View>
@@ -336,6 +340,14 @@ const styles = StyleSheet.create({
   webContent: {
     maxWidth: 1180,
     alignSelf: 'center',
+  },
+  ownPrescriptionNotice: {
+    marginBottom: spacing.md,
+    padding: spacing.sm,
+    color: colors.gray[600],
+    backgroundColor: colors.gray[100],
+    borderRadius: 8,
+    fontSize: typography.fontSize.sm,
   },
 
   header: {

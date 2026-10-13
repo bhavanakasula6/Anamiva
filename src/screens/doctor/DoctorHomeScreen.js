@@ -30,6 +30,7 @@ const DoctorHomeScreen = ({ navigation }) => {
     loadActiveEmergency,
     loadAppointments,
     loadPendingRecords,
+    loadAnalytics,
     loading,
   } = useDoctor();
 
@@ -39,6 +40,7 @@ const DoctorHomeScreen = ({ navigation }) => {
       loadActiveEmergency();
       loadAppointments();
       loadPendingRecords();
+      loadAnalytics({ period: 'today', startDate: null, endDate: null });
     }, [])
   );
   const APPOINTMENT_TYPE_LABELS = {
@@ -84,7 +86,7 @@ const DoctorHomeScreen = ({ navigation }) => {
     todayAppointments.map(a => a.patient?.id)
   ).size;
 
-  const revenue = analytics?.today?.revenue ?? 0;
+  const revenue = analytics?.summary?.revenue ?? 0;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -129,7 +131,7 @@ const DoctorHomeScreen = ({ navigation }) => {
             />
             <StatCard
               title="Revenue"
-              value={`₹${analytics?.today?.revenue || 0}`}
+              value={`₹${revenue}`}
               icon="wallet"
               color={colors.warning[500]}
             />

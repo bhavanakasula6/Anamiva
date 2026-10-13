@@ -132,6 +132,7 @@ exports.getMedicalRecords = async (req, res) => {
   try {
     let queryPatientId = req.user.id;
     const filter = {};
+    let accessScope = 'owner';
 
     // If a doctor requests records for a specific patient
     if (req.query.patientId && req.user.role === 'doctor') {
@@ -154,7 +155,13 @@ exports.getMedicalRecords = async (req, res) => {
       });
 
       if (!consent) {
-        return res.status(403).json({ success: false, message: 'Patient has not shared medical history access' });
+        // A doctor may always view prescriptions that they personally issued
+        // for this patient, but never unrelated records without active consent.
+        filter.doctorId = doctorProfile._id;
+        filter.type = 'prescription';
+        accessScope = 'own-prescriptions';
+      } else {
+        accessScope = 'shared-records';
       }
     }
 
@@ -178,7 +185,7 @@ exports.getMedicalRecords = async (req, res) => {
 
     const transformedRecords = records.map(rec => transformMedicalRecord(rec));
 
-    res.json({ success: true, records: transformedRecords });
+    res.json({ success: true, records: transformedRecords, accessScope });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

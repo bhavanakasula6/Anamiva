@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   ScrollView,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
@@ -92,11 +93,30 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
   const [prescription, setPrescription] = useState(null);
   const [showAccess, setShowAccess] = useState(isDoctor);
   const [actionLoading, setActionLoading] = useState(null);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [ratingReview, setRatingReview] = useState('');
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
 
   const isCompleted = appointment?.status === APPOINTMENT_STATUS.COMPLETED;
   const isCancelled = appointment?.status === APPOINTMENT_STATUS.CANCELLED;
   const isUpcoming = appointment?.status === APPOINTMENT_STATUS.UPCOMING;
   const isPending = appointment?.status === APPOINTMENT_STATUS.PENDING;
+
+  const submitRating = async () => {
+    if (!selectedRating) {
+      Alert.alert('Rating required', 'Please select a rating from 1 to 5.');
+      return;
+    }
+    setRatingSubmitting(true);
+    const response = await appointmentAPI.submitRating(appointment.id, selectedRating, ratingReview);
+    setRatingSubmitting(false);
+    if (response?.success) {
+      setAppointment(response.appointment);
+      Alert.alert('Thank you', 'Your rating was submitted successfully.');
+    } else {
+      Alert.alert('Unable to submit rating', response?.message || 'Please try again.');
+    }
+  };
 
   const loadAppointment = async () => {
     const res = await appointmentAPI.getAppointmentById(appointmentId);
@@ -513,6 +533,12 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                 </Text>
               ) : null}
 
+              <Text style={styles.prescriptionDate}>
+                Prescription date: {new Date(
+                  visiblePrescription?.recordDate || visiblePrescription?.date || visiblePrescription?.createdAt
+                ).toLocaleDateString()}
+              </Text>
+
               {visiblePrescription?.medications?.length ? visiblePrescription.medications.map((med, i) => (
                 <View key={i} style={styles.prescriptionItem}>
                   <Text style={styles.medName}>{med.name}</Text>
@@ -915,6 +941,32 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
             </Card>
           )}
 
+          {isPatient && isCompleted && !appointment.rating && (
+            <Card style={styles.card}>
+              <Text style={styles.section}>Rate your consultation</Text>
+              <View style={styles.ratingChoices}>
+                {[1, 2, 3, 4, 5].map(value => (
+                  <TouchableOpacity
+                    key={value}
+                    style={[styles.ratingChoice, selectedRating === value && styles.ratingChoiceSelected]}
+                    onPress={() => setSelectedRating(value)}
+                  >
+                    <Text style={styles.ratingChoiceText}>{value}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={styles.reviewInput}
+                value={ratingReview}
+                onChangeText={setRatingReview}
+                placeholder="Optional review"
+                placeholderTextColor={colors.gray[400]}
+                multiline
+              />
+              <Button loading={ratingSubmitting} onPress={submitRating}>Submit rating</Button>
+            </Card>
+          )}
+
           {/* Doctor Actions */}
           {isDoctor && !isCancelled && !isCompleted && (
             <Card style={styles.card}>
@@ -1081,8 +1133,45 @@ const styles = StyleSheet.create({
     color: colors.gray[700],
     marginBottom: spacing.sm,
   },
+  prescriptionDate: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[600],
+    marginBottom: spacing.sm,
+  },
   prescriptionRecordButton: {
     marginTop: spacing.xs,
+  },
+  ratingChoices: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginVertical: spacing.sm,
+  },
+  ratingChoice: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ratingChoiceSelected: {
+    borderColor: colors.primary[500],
+    backgroundColor: colors.primary[50],
+  },
+  ratingChoiceText: {
+    color: colors.gray[800],
+    fontFamily: typography.fontFamily.semiBold,
+  },
+  reviewInput: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: 8,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    color: colors.gray[900],
+    textAlignVertical: 'top',
   },
   medName: {
     fontSize: typography.fontSize.sm,

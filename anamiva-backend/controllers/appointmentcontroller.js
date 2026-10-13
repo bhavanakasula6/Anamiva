@@ -247,6 +247,14 @@ exports.createAppointment = async (req, res) => {
       });
     }
 
+    await createNotification({
+      userId: appointment.patientId,
+      title: 'Appointment request submitted',
+      message: `Your appointment request for ${date} at ${time} was submitted.`,
+      type: 'appointment',
+      data: { appointmentId: appointment._id.toString(), status: appointment.status },
+    });
+
     // Notify doctor via socket so their dashboard updates in real-time
     try {
       const doctorProfile = await Doctor.findById(doctorId);
@@ -299,6 +307,14 @@ exports.getAppointments = async (req, res) => {
         aptDate.setMinutes(aptDate.getMinutes() + 30);
 
         if (aptDate < now) {
+          const prescriptionExists = await MedicalRecord.exists({
+            appointmentId: apt._id,
+            type: 'prescription',
+          });
+
+          // Keep the appointment open until the doctor has completed the prescription.
+          if (!prescriptionExists) continue;
+
           expiredAppointmentIds.push(apt._id);
           bulkOps.push({
             updateOne: {
@@ -438,6 +454,37 @@ exports.updateStatus = async (req, res) => {
       }
     } else {
       return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    if (!['pending', 'upcoming', 'completed', 'cancelled', 'no_show'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid appointment status' });
+    }
+
+    if (status === 'completed') {
+      const appointmentDateTime = new Date(appointment.date);
+      const [hours, minutes] = String(appointment.time || '00:00').split(':').map(Number);
+      appointmentDateTime.setHours(hours, minutes, 0, 0);
+      appointmentDateTime.setMinutes(appointmentDateTime.getMinutes() + 30);
+
+      if (new Date() < appointmentDateTime) {
+        return res.status(400).json({
+          success: false,
+          error: 'APPOINTMENT_NOT_FINISHED',
+          message: 'The appointment can be closed only after its scheduled time.',
+        });
+      }
+
+      const prescriptionExists = await MedicalRecord.exists({
+        appointmentId: appointment._id,
+        type: 'prescription',
+      });
+      if (!prescriptionExists) {
+        return res.status(400).json({
+          success: false,
+          error: 'PRESCRIPTION_REQUIRED',
+          message: 'Add the prescription before completing this appointment.',
+        });
+      }
     }
 
     appointment.status = status;
@@ -662,6 +709,63 @@ exports.addNotes = async (req, res) => {
       .populate('patientId');
 
     res.json({ success: true, appointment: transformAppointment(populated) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* =========================
+   SUBMIT PATIENT RATING
+========================= */
+exports.submitRating = async (req, res) => {
+  try {
+    const score = Number(req.body.rating);
+    const review = String(req.body.review || '').trim();
+    const appointment = await Appointment.findById(req.params.appointmentId);
+
+    if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+    if (appointment.patientId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+    if (appointment.status !== 'completed') {
+      return res.status(400).json({ success: false, message: 'Rating is available after the consultation is completed' });
+    }
+    if (!Number.isInteger(score) || score < 1 || score > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
+    if (appointment.rating) {
+      return res.status(409).json({ success: false, message: 'This appointment has already been rated' });
+    }
+
+    appointment.rating = score;
+    appointment.review = review;
+    appointment.ratedAt = new Date();
+    await appointment.save();
+
+    const doctorRatings = await Appointment.find({
+      doctorId: appointment.doctorId,
+      rating: { $exists: true, $ne: null },
+    }).select('rating');
+    const average = doctorRatings.length
+      ? doctorRatings.reduce((sum, item) => sum + item.rating, 0) / doctorRatings.length
+      : 0;
+    await Doctor.findByIdAndUpdate(appointment.doctorId, {
+      rating: Math.round(average * 10) / 10,
+      reviewCount: doctorRatings.length,
+    });
+
+    const doctorProfile = await Doctor.findById(appointment.doctorId);
+    if (doctorProfile) {
+      await createNotification({
+        userId: doctorProfile.userId,
+        title: 'New consultation rating',
+        message: `A patient rated your consultation ${score}/5.`,
+        type: 'appointment',
+        data: { appointmentId: appointment._id.toString(), rating: score },
+      });
+    }
+
+    res.json({ success: true, appointment: transformAppointment(appointment) });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

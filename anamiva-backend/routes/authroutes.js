@@ -8,6 +8,8 @@ router.post("/send-otp", authController.sendOtp);
 router.post("/verify-otp", authController.verifyOtp);
 
 router.post("/select-role", protectTemp, authController.selectRole);
+router.delete("/incomplete-registration", protectTemp, authController.abandonIncompleteRegistration);
+router.post("/change-email", protectTemp, authController.changeEmail);
 router.post("/complete-profile", protectTemp, authController.completeProfile);
 
 router.get("/me", protectTemp, authController.getMe);

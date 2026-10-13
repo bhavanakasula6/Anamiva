@@ -25,7 +25,7 @@ import Icon from '../../components/Icon';
 
 const DoctorProfileSetupScreen = ({ navigation, route }) => {
   const { email = '', role = 'doctor' } = route.params || {};
-  const { completeProfile } = useAuth();
+  const { completeProfile, abandonIncompleteRegistration } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const isDesktop = width >= 900;
@@ -59,6 +59,15 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const handleChangeEmail = async () => {
+    const response = await abandonIncompleteRegistration();
+    if (response.success) {
+      navigation.replace('Login');
+    } else {
+      Alert.alert('Unable to change email', response.message || 'Please try again.');
+    }
+  };
 
   const updateField = (field, value) => {
   setFormData((prev) => ({
@@ -238,13 +247,20 @@ const DoctorProfileSetupScreen = ({ navigation, route }) => {
               <Input
                 label="Email *"
                 value={formData.email}
-                onChangeText={(value) => updateField('email', value)}
                 placeholder="Enter email address"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                disabled
                 error={errors.email}
               />
+              <TouchableOpacity
+                style={styles.changeEmailButton}
+                onPress={handleChangeEmail}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.changeEmailText}>Change email</Text>
+              </TouchableOpacity>
 
               {/* Gender Selection */}
               <View style={styles.fieldContainer}>
@@ -634,6 +650,18 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     marginTop: spacing.xl,
+  },
+  changeEmailButton: {
+    alignSelf: 'flex-start',
+    minHeight: 40,
+    justifyContent: 'center',
+    marginTop: -spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  changeEmailText: {
+    color: colors.primary[600],
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.semiBold,
   },
 });
 

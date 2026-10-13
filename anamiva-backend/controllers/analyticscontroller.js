@@ -18,7 +18,9 @@ exports.getDoctorAnalytics = async (req, res, next) => {
     let end = new Date();
 
     if (period === 'today') {
-      start.setHours(0, 0, 0, 0);
+      const now = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     } else if (period === 'week') {
       start.setDate(start.getDate() - 7);
     } else if (period === 'month') {

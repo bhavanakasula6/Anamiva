@@ -130,6 +130,32 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const abandonIncompleteRegistration = async () => {
+    try {
+      return await authAPI.abandonIncompleteRegistration();
+    } catch (error) {
+      console.error('Error clearing incomplete registration:', error);
+      return { success: false, message: 'Unable to clear the incomplete registration' };
+    }
+  };
+
+  const changeEmail = async (email, otp) => {
+    try {
+      const response = await authAPI.changeEmail(email, otp);
+      if (response.success) {
+        setUser(response.user);
+        api.setCurrentUser(response.user);
+        setToken(response.token);
+        await storage.saveUser(response.user);
+        await storage.saveToken(response.token);
+      }
+      return response;
+    } catch (error) {
+      console.error('Error changing email:', error);
+      return { success: false, message: 'Unable to change email' };
+    }
+  };
+
   // Complete profile (for new users)
   const completeProfile = async (profileData) => {
     try {
@@ -239,6 +265,8 @@ export const AuthProvider = ({ children }) => {
     sendOTP,
     verifyOTP,
     selectRole,
+    abandonIncompleteRegistration,
+    changeEmail,
     completeProfile,
     login,
     logout: logoutUser,

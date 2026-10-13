@@ -11,6 +11,7 @@ router.patch('/:appointmentId/status', protect, authorize('doctor'), appointment
 router.post('/:appointmentId/cancel', protect, appointmentController.cancelAppointment);
 router.patch('/:appointmentId/reschedule', protect, appointmentController.rescheduleAppointment);
 router.post('/:appointmentId/notes', protect, authorize('doctor'), appointmentController.addNotes);
+router.post('/:appointmentId/rating', protect, appointmentController.submitRating);
 router.post('/:appointmentId/prescription', protect, authorize('doctor'), appointmentController.createPrescription);
 router.get('/:appointmentId/prescription', protect, appointmentController.getPrescription);
 

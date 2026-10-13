@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import {
     Alert,
+    Modal,
     ScrollView,
     StyleSheet,
     Text,
@@ -26,7 +27,7 @@ import { INDIAN_STATES, CITIES_BY_STATE } from '../../data/constants';
 import { authAPI } from '../../services/api';
 
 const DoctorEditProfileScreen = ({ navigation }) => {
-    const { user, updateProfile } = useAuth();
+    const { user, updateProfile, sendOTP, changeEmail } = useAuth();
     const { width } = useWindowDimensions();
     const isWeb = Platform.OS === 'web';
     const isTabletUp = width >= 768;
@@ -73,6 +74,11 @@ const DoctorEditProfileScreen = ({ navigation }) => {
     const [loading, setLoading] = useState(false);
     const [avatarUri, setAvatarUri] = useState(user?.avatar || null);
     const [hasChanges, setHasChanges] = useState(false);
+    const [emailModalVisible, setEmailModalVisible] = useState(false);
+    const [newEmail, setNewEmail] = useState('');
+    const [emailOtp, setEmailOtp] = useState('');
+    const [emailStep, setEmailStep] = useState('email');
+    const [emailLoading, setEmailLoading] = useState(false);
 
     const updateField = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -104,6 +110,34 @@ const DoctorEditProfileScreen = ({ navigation }) => {
         } catch (error) {
             console.error('Error picking image:', error);
             Alert.alert('Error', 'Failed to pick image');
+        }
+    };
+
+    const startEmailChange = () => {
+        setNewEmail('');
+        setEmailOtp('');
+        setEmailStep('email');
+        setEmailModalVisible(true);
+    };
+
+    const sendEmailChangeOtp = async () => {
+        setEmailLoading(true);
+        const response = await sendOTP(newEmail.trim().toLowerCase());
+        setEmailLoading(false);
+        if (response.success) setEmailStep('otp');
+        else Alert.alert('Unable to send OTP', response.message || 'Please try again.');
+    };
+
+    const verifyEmailChange = async () => {
+        setEmailLoading(true);
+        const response = await changeEmail(newEmail.trim().toLowerCase(), emailOtp.trim());
+        setEmailLoading(false);
+        if (response.success) {
+            updateField('email', response.user.email);
+            setEmailModalVisible(false);
+            Alert.alert('Success', 'Email changed successfully.');
+        } else {
+            Alert.alert('Unable to change email', response.message || 'Invalid or expired OTP.');
         }
     };
 
@@ -334,13 +368,15 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                                 <Input
                                     label="Email *"
                                     value={formData.email}
-                                    onChangeText={text => updateField('email', text)}
                                     error={errors.email}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoCorrect={false}
-                                    editable={!loading}
+                                    disabled
                                 />
+                                <TouchableOpacity style={styles.changeEmailButton} onPress={startEmailChange}>
+                                    <Text style={styles.changeEmailText}>Change email</Text>
+                                </TouchableOpacity>
 
                                 <Input
                                     label="Phone"
@@ -521,6 +557,28 @@ const DoctorEditProfileScreen = ({ navigation }) => {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            <Modal visible={emailModalVisible} transparent animationType="fade" onRequestClose={() => setEmailModalVisible(false)}>
+                <View style={styles.modalBackdrop}>
+                    <View style={styles.emailModal}>
+                        <Text style={styles.modalTitle}>Change email</Text>
+                        <Text style={styles.modalMessage}>
+                            {emailStep === 'email' ? 'Enter your new email address.' : `Enter the OTP sent to ${newEmail}.`}
+                        </Text>
+                        {emailStep === 'email' ? (
+                            <Input label="New email" value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
+                        ) : (
+                            <Input label="OTP" value={emailOtp} onChangeText={value => setEmailOtp(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" />
+                        )}
+                        <Button fullWidth loading={emailLoading} onPress={emailStep === 'email' ? sendEmailChangeOtp : verifyEmailChange}>
+                            {emailStep === 'email' ? 'Send OTP' : 'Verify and change email'}
+                        </Button>
+                        <TouchableOpacity style={styles.modalCancel} onPress={() => setEmailModalVisible(false)}>
+                            <Text style={styles.modalCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -650,6 +708,14 @@ const styles = StyleSheet.create({
     saveButton: {
         marginBottom: spacing.xl,
     },
+    changeEmailButton: { alignSelf: 'flex-start', minHeight: 40, justifyContent: 'center', marginTop: -spacing.sm, marginBottom: spacing.sm },
+    changeEmailText: { color: colors.primary[600], fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.semiBold },
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: spacing.lg },
+    emailModal: { backgroundColor: colors.white, borderRadius: borderRadius.xl, padding: spacing.xl },
+    modalTitle: { fontSize: typography.fontSize.xl, fontFamily: typography.fontFamily.bold, color: colors.gray[900], marginBottom: spacing.sm },
+    modalMessage: { fontSize: typography.fontSize.sm, color: colors.gray[600], marginBottom: spacing.lg },
+    modalCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: spacing.sm },
+    modalCancelText: { color: colors.gray[600], fontSize: typography.fontSize.sm, fontFamily: typography.fontFamily.semiBold },
 });
 
 export default DoctorEditProfileScreen;

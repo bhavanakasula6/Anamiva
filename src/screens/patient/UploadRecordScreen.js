@@ -262,7 +262,7 @@ const UploadRecordScreen = ({ navigation }) => {
           <Button
             variant="outline"
             icon="upload"
-            onPress={showPickerOptions}
+            onPress={pickDocument}
           >
             {selectedFile ? 'Change Document' : 'Upload Document'}
           </Button>
