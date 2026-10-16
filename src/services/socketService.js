@@ -7,7 +7,7 @@ import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../data/constants';
 
 // Derive socket URL from API base URL (remove '/api' suffix)
-const SOCKET_URL = API_BASE_URL.replace('/api', '');
+const SOCKET_URL = API_BASE_URL.trim().replace(/\/api\/?$/, '');
 
 let socket = null;
 

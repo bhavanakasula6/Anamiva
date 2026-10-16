@@ -201,8 +201,19 @@ export const PatientProvider = ({ children }) => {
       }, 1000);
     }
 
+    // Socket events are the fast path. Keep active screens synchronized even
+    // if a hosted WebSocket connection is temporarily interrupted.
+    const syncInterval = setInterval(() => {
+      loadAppointments();
+      loadMedicalRecords();
+      loadActiveMedications();
+      loadRequests();
+      loadNotifications();
+    }, 5000);
+
     return () => {
       if (interval) clearInterval(interval);
+      clearInterval(syncInterval);
       const socket = socketService.getSocket();
       if (socket) {
         socket.off('appointment-updated', handleAppointmentUpdated);

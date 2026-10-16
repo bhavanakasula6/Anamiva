@@ -170,10 +170,31 @@ export const DoctorProvider = ({ children }) => {
           clearInterval(interval);
         }
       }, 1000);
-      return () => clearInterval(interval);
+      const syncInterval = setInterval(() => {
+        loadAppointments();
+        loadPendingRecords();
+        loadActiveEmergency();
+        loadAnalytics();
+        loadNotifications();
+      }, 5000);
+      return () => {
+        clearInterval(interval);
+        clearInterval(syncInterval);
+      };
     }
 
+    // Socket events update immediately; this keeps the dashboard correct if
+    // a hosted WebSocket connection is temporarily interrupted.
+    const syncInterval = setInterval(() => {
+      loadAppointments();
+      loadPendingRecords();
+      loadActiveEmergency();
+      loadAnalytics();
+      loadNotifications();
+    }, 5000);
+
     return () => {
+      clearInterval(syncInterval);
       const sock = socketService.getSocket();
       if (sock) {
         sock.off('consent-granted', handleConsentGranted);
