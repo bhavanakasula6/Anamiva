@@ -5,7 +5,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 
 import { useAuth } from './AuthContext';
 import socketService from '../services/socketService';
@@ -13,6 +13,17 @@ import IncomingCallModal from '../components/common/IncomingCallModal';
 import { appointmentAPI } from '../services/api';
 
 const SocketContext = createContext(null);
+
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 export const useSocket = () => useContext(SocketContext);
 
@@ -22,6 +33,20 @@ export const SocketProvider = ({ children }) => {
 
   // Incoming call state
   const [incomingCall, setIncomingCall] = useState(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || !user || !token) return undefined;
+
+    Notifications.getPermissionsAsync()
+      .then(async ({ status }) => {
+        if (status !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      })
+      .catch((error) => console.warn('Unable to request notification permission:', error));
+
+    return undefined;
+  }, [user, token]);
 
   // Connect socket when user is authenticated
   useEffect(() => {
@@ -38,16 +63,28 @@ export const SocketProvider = ({ children }) => {
       setIncomingCall(null);
     };
     const handleNotificationCreated = (notification) => {
-      if (
-        Platform.OS === 'web' &&
-        typeof window !== 'undefined' &&
-        'Notification' in window &&
-        window.Notification.permission === 'granted'
-      ) {
-        new window.Notification(notification?.title || 'New notification', {
-          body: notification?.message || 'You have a new update in Anamiva.',
-        });
+      const title = notification?.title || 'New notification';
+      const body = notification?.message || 'You have a new update in Anamiva.';
+
+      if (Platform.OS === 'web') {
+        if (
+          typeof window !== 'undefined' &&
+          'Notification' in window &&
+          window.Notification.permission === 'granted'
+        ) {
+          new window.Notification(title, { body });
+        }
+        return;
       }
+
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title,
+          body,
+          data: notification?.data || {},
+        },
+        trigger: null,
+      }).catch((error) => console.warn('Unable to show notification:', error));
     };
 
     if (userId && token) {

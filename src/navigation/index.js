@@ -20,7 +20,7 @@ import { USER_ROLES } from '../data/constants';
 const Stack = createStackNavigator();
 
 const linking = {
-  prefixes: ['http://localhost:8081', 'https://anamiva.app'],
+  prefixes: ['http://localhost:8081', 'https://anamiva.app', 'https://anamiva.vercel.app'],
   config: {
     screens: {
       Auth: {
