@@ -87,7 +87,15 @@ export const PatientProvider = ({ children }) => {
       loadNotifications();
     };
 
-    const handleNotificationCreated = () => loadNotifications();
+    const handleNotificationCreated = () => {
+      // Keep dashboard cards and lists synchronized when any server-side
+      // action creates a notification.
+      loadAppointments();
+      loadMedicalRecords();
+      loadActiveMedications();
+      loadRequests();
+      loadNotifications();
+    };
 
     const handlePrescriptionUpdated = () => {
       loadAppointments();

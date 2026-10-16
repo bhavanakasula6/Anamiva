@@ -16,12 +16,21 @@ const socketService = {
    * Connect to the Socket.IO server
    */
   connect: (userId, token) => {
-    if (socket?.connected) return socket;
+    // Keep the same Socket.IO instance during reconnects so screen/context
+    // listeners remain attached to the active connection.
+    if (socket) {
+      socket.auth = { userId, token };
+      socket.io.opts.query = { userId, token };
+      if (!socket.connected) socket.connect();
+      return socket;
+    }
 
     socket = io(SOCKET_URL, {
       auth: { userId, token },
       query: { userId, token },
-      transports: ['websocket'],
+      // WebSocket is preferred, but polling keeps hosted web deployments
+      // working when a proxy temporarily blocks an upgrade.
+      transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,

@@ -79,7 +79,15 @@ export const DoctorProvider = ({ children }) => {
       loadNotifications();
     };
 
-    const handleNotificationCreated = () => loadNotifications();
+    const handleNotificationCreated = () => {
+      // A notification can represent a new booking, record, emergency, or
+      // status change. Refresh the visible dashboard data as well as the list.
+      loadAppointments();
+      loadPendingRecords();
+      loadActiveEmergency();
+      loadAnalytics();
+      loadNotifications();
+    };
 
     const handleAppointmentUpdated = () => {
       loadAppointments();
