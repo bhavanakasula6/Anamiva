@@ -39,6 +39,7 @@ import {
 } from '../../data/constants';
 import { appointmentAPI, medicalRecordAPI } from '../../services/api';
 import socketService from '../../services/socketService';
+import { getAppointmentDisplayStatus } from '../../utils/appointmentStatus';
 
 const getRecordId = (record) => record?._id || record?.id;
 
@@ -363,6 +364,14 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
   };
 
   const completeConsultation = () => {
+    if (!prescription && !appointment?.prescription && !appointment?.prescriptionId) {
+      Alert.alert(
+        'Prescription required',
+        'You cannot complete this appointment until you add the prescription.'
+      );
+      return;
+    }
+
     Alert.alert(
       'Complete Consultation?',
       'This will close the consultation and revoke consultation record access.',
@@ -379,6 +388,11 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
             if (res?.success) {
               setAppointment(res.appointment); // 🔑
               await checkConsent(appointment.id);
+            } else {
+              Alert.alert(
+                res?.error === 'PRESCRIPTION_REQUIRED' ? 'Prescription required' : 'Unable to complete appointment',
+                res?.message || 'The appointment could not be completed.'
+              );
             }
             setActionLoading(null);
           },
@@ -508,7 +522,9 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
             <Badge
               size="sm"
               variant={
-                appointment.status === APPOINTMENT_STATUS.PENDING
+                getAppointmentDisplayStatus(appointment) === 'missed'
+                  ? 'danger'
+                  : appointment.status === APPOINTMENT_STATUS.PENDING
                   ? 'warning'
                   : appointment.status === APPOINTMENT_STATUS.UPCOMING
                     ? 'primary'
@@ -517,7 +533,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                       : 'gray'
               }
             >
-              {appointment.status}
+              {getAppointmentDisplayStatus(appointment)}
             </Badge>
 
           </Card>

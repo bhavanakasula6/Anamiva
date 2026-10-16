@@ -21,6 +21,7 @@ import Icon from '../../components/Icon';
 import { usePatient } from '../../contexts/PatientContext';
 import { APPOINTMENT_STATUS } from '../../data/constants';
 import { borderRadius, colors, shadows, spacing, typography } from '../../styles/theme';
+import { getAppointmentDisplayStatus } from '../../utils/appointmentStatus';
 
 const AppointmentsScreen = ({ navigation }) => {
   const { appointments, loading, loadAppointments } = usePatient();
@@ -51,18 +52,13 @@ const AppointmentsScreen = ({ navigation }) => {
   ];
 
   useEffect(() => {
-    const now = new Date();
     const filtered = appointments
       .filter(a => {
         if (a.status !== activeTab) return false;
         if (activeTab === APPOINTMENT_STATUS.UPCOMING) {
-          // Build full datetime from date + time
-          const aptDate = new Date(a.date);
-          if (a.time) {
-            const [hours, minutes] = a.time.split(':').map(Number);
-            aptDate.setHours(hours, minutes, 0, 0);
-          }
-          return aptDate > now;
+          // Keep past open appointments visible and label them "missed".
+          // Doctors can still open the details, add a prescription, and close them.
+          return true;
         }
         return true;
       })
@@ -102,7 +98,9 @@ const AppointmentsScreen = ({ navigation }) => {
 
           <Badge
             variant={
-              appointment.status === APPOINTMENT_STATUS.PENDING
+              getAppointmentDisplayStatus(appointment) === 'missed'
+                ? 'danger'
+                : appointment.status === APPOINTMENT_STATUS.PENDING
                 ? 'warning'
                 : appointment.status === APPOINTMENT_STATUS.UPCOMING
                   ? 'primary'
@@ -112,7 +110,7 @@ const AppointmentsScreen = ({ navigation }) => {
             }
             size="sm"
           >
-            {appointment.status}
+            {getAppointmentDisplayStatus(appointment)}
           </Badge>
         </View>
 

@@ -11,6 +11,7 @@ import Icon from '../../components/Icon';
 import { useDoctor } from '../../contexts/DoctorContext';
 import { APPOINTMENT_STATUS } from '../../data/constants';
 import { colors, spacing, typography } from '../../styles/theme';
+import { getAppointmentDisplayStatus } from '../../utils/appointmentStatus';
 
 const calculateAge = (dateOfBirth) => {
   if (!dateOfBirth || dateOfBirth === 'undefined') return null;
@@ -77,7 +78,9 @@ const DoctorAppointmentsScreen = ({ navigation }) => {
           </View>
           <Badge
             variant={
-              appointment.status === APPOINTMENT_STATUS.PENDING
+              getAppointmentDisplayStatus(appointment) === 'missed'
+                ? 'danger'
+                : appointment.status === APPOINTMENT_STATUS.PENDING
                 ? 'warning'
                 : appointment.status === APPOINTMENT_STATUS.UPCOMING
                   ? 'primary'
@@ -87,7 +90,7 @@ const DoctorAppointmentsScreen = ({ navigation }) => {
             }
             size="sm"
           >
-            {appointment.status}
+            {getAppointmentDisplayStatus(appointment)}
           </Badge>
 
         </View>

@@ -274,6 +274,7 @@ export const appointmentAPI = {
     if (filters.status) params.append('status', filters.status);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.limit) params.append('limit', filters.limit);
 
     const queryString = params.toString();
     const endpoint = queryString ? `/appointments?${queryString}` : '/appointments';
