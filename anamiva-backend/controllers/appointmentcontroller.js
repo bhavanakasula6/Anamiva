@@ -427,6 +427,18 @@ exports.updateStatus = async (req, res) => {
     }
 
     if (status === 'no_show') {
+      const prescriptionExists = await MedicalRecord.exists({
+        appointmentId: appointment._id,
+        type: 'prescription',
+      });
+      if (prescriptionExists) {
+        return res.status(400).json({
+          success: false,
+          error: 'PRESCRIPTION_ALREADY_EXISTS',
+          message: 'This appointment has a prescription and cannot be marked as no-show.',
+        });
+      }
+
       if (!['pending', 'upcoming'].includes(appointment.status)) {
         return res.status(400).json({
           success: false,

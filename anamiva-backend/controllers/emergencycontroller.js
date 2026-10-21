@@ -2,6 +2,7 @@ const EmergencyRequest = require('../models/emergencyrequest');
 const ChatMessage = require('../models/chatmessage');
 const Doctor = require('../models/doctor');
 const User = require('../models/user');
+const { createNotification } = require('../services/notificationservice');
 
 /* =========================
    CREATE EMERGENCY REQUEST
@@ -51,6 +52,15 @@ exports.createEmergency = async (req, res) => {
         address: location.address || '',
       },
     });
+
+    const doctors = await Doctor.find({}).select('userId');
+    await Promise.all(doctors.map(doctor => createNotification({
+      userId: doctor.userId,
+      title: 'New emergency request',
+      message: `A ${emergency.urgency} priority emergency request is available nearby.`,
+      type: 'emergency',
+      data: { emergencyId: emergency._id.toString(), status: emergency.status },
+    })));
 
     try {
       const { getIO } = require('../sockets/socket');
@@ -219,6 +229,14 @@ exports.acceptEmergency = async (req, res) => {
       city: doctorUser?.address?.city || '',
     };
 
+    await createNotification({
+      userId: emergency.patientId,
+      title: 'Emergency request accepted',
+      message: `${doctorInfo.name} accepted your emergency request.`,
+      type: 'emergency',
+      data: { emergencyId: emergency._id.toString(), status: emergency.status },
+    });
+
     // Build patient info for the doctor
     const patientData = emergency.patientId;
     const patientInfo = {
@@ -306,6 +324,19 @@ exports.updateEmergencyStatus = async (req, res) => {
     }
     await emergency.save();
 
+    const statusMessages = {
+      in_progress: 'Your emergency care is now in progress.',
+      completed: 'Your emergency care has been completed.',
+      cancelled: 'Your emergency request was cancelled.',
+    };
+    await createNotification({
+      userId: emergency.patientId,
+      title: 'Emergency request updated',
+      message: statusMessages[status] || `Emergency status changed to ${status}.`,
+      type: 'emergency',
+      data: { emergencyId: emergency._id.toString(), status },
+    });
+
     // Notify both patient and doctor of status change
     try {
       const { getIO } = require('../sockets/socket');
@@ -318,6 +349,13 @@ exports.updateEmergencyStatus = async (req, res) => {
         // Find the doctor's userId to emit to their socket room
         const docProfile = await Doctor.findById(emergency.doctorId);
         if (docProfile) {
+          await createNotification({
+            userId: docProfile.userId,
+            title: 'Emergency request updated',
+            message: `Emergency request status changed to ${status}.`,
+            type: 'emergency',
+            data: { emergencyId: emergency._id.toString(), status },
+          });
           io.to(`user_${docProfile.userId.toString()}`).emit('emergency-status-updated', {
             emergencyId: emergency._id.toString(),
             status,

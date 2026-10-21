@@ -577,6 +577,11 @@ export const notificationAPI = {
     const response = await httpClient.get('/notifications/unread-count');
     return response;
   },
+
+  getPreferences: async () => httpClient.get('/notifications/preferences'),
+  updatePreferences: async (preferences) => httpClient.patch('/notifications/preferences', preferences),
+  registerPushToken: async (token, platform) => httpClient.post('/notifications/push-token', { token, platform }),
+  removePushToken: async (token) => httpClient.delete('/notifications/push-token', { body: { token } }),
 };
 
 // ============================================

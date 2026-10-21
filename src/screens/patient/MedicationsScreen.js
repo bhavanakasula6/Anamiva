@@ -34,6 +34,49 @@ import {
 
 import Icon from '../../components/Icon';
 
+const getIndiaDateKey = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+  }).format(date);
+};
+
+const getMedicationProgress = (medication) => {
+  const startKey = getIndiaDateKey(medication.startDate);
+  const todayKey = getIndiaDateKey(new Date());
+  if (!startKey || !todayKey) return null;
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const startDay = Date.parse(`${startKey}T00:00:00Z`);
+  const todayDay = Date.parse(`${todayKey}T00:00:00Z`);
+  const elapsedDays = Math.floor((todayDay - startDay) / dayMs) + 1;
+
+  if (elapsedDays < 1) {
+    return `Starts ${startKey}`;
+  }
+
+  let totalDays = null;
+  const endKey = getIndiaDateKey(medication.endDate);
+  if (endKey) {
+    const endDay = Date.parse(`${endKey}T00:00:00Z`);
+    totalDays = Math.max(1, Math.round((endDay - startDay) / dayMs));
+  } else if (Number.isFinite(Number(medication.durationValue))) {
+    const durationValue = Number(medication.durationValue);
+    const durationUnit = medication.durationUnit || 'days';
+    totalDays = durationUnit === 'weeks'
+      ? durationValue * 7
+      : durationUnit === 'months'
+        ? durationValue * 30
+        : durationValue;
+  }
+
+  return totalDays
+    ? `Day ${Math.min(elapsedDays, totalDays)} of ${totalDays}`
+    : `Day ${elapsedDays}`;
+};
+
 const MedicationsScreen = ({navigation}) => {
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
@@ -76,6 +119,13 @@ const MedicationsScreen = ({navigation}) => {
       </View>
 
       <View style={styles.cardBody}>
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Current day</Text>
+          <Text style={[styles.detailValue, styles.progressValue]}>
+            {getMedicationProgress(medication) || 'Start date unavailable'}
+          </Text>
+        </View>
+
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Duration</Text>
           <Text style={styles.detailValue}>
@@ -227,6 +277,10 @@ const styles = StyleSheet.create({
     color: colors.gray[900],
     maxWidth: '60%',
     textAlign: 'right',
+  },
+
+  progressValue: {
+    color: colors.primary[600],
   },
 });
 

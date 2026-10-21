@@ -1047,7 +1047,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                 </Button>
               )}
 
-              {isMissed && (isPending || isUpcoming) && (
+              {isMissed && (isPending || isUpcoming) && !prescriptionRecordId && (
                 <Button
                   variant="danger"
                   loading={actionLoading === 'no-show-appointment'}

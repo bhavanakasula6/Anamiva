@@ -84,6 +84,21 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
 
+    notificationPreferences: {
+      notifications: { type: Boolean, default: true },
+      appointmentNotifications: { type: Boolean, default: true },
+      medicalRecordNotifications: { type: Boolean, default: true },
+      emergencyNotifications: { type: Boolean, default: true },
+    },
+
+    pushTokens: [
+      {
+        token: { type: String, required: true },
+        platform: { type: String, enum: ["android", "ios", "web"] },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+
     isProfileCompleted: {
       type: Boolean,
       default: false,

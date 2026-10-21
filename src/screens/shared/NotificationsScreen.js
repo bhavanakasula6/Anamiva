@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Platform,
   Switch,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -35,6 +36,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { usePatient } from '../../contexts/PatientContext';
 import { useDoctor } from '../../contexts/DoctorContext';
 import { getSettings, saveSettings } from '../../services/storage';
+import { notificationAPI } from '../../services/api';
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
   notifications: true,
@@ -44,7 +46,7 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
 };
 
 const NotificationsScreen = ({ navigation }) => {
-  const { isPatient } = useAuth();
+  const { isPatient, isDoctor } = useAuth();
 
   const patientContext = usePatient() || {};
   const doctorContext = useDoctor() || {};
@@ -60,30 +62,87 @@ const NotificationsScreen = ({ navigation }) => {
     markNotificationAsRead,
     markAllNotificationsAsRead,
   } = notificationContext;
-  const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(
-    Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window) || window.Notification.permission === 'granted'
+  const browserNotificationsSupported = Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    'Notification' in window;
+  const [browserPermission, setBrowserPermission] = useState(
+    browserNotificationsSupported ? window.Notification.permission : 'unsupported'
   );
+  const browserNotificationsEnabled = browserPermission === 'granted' || !browserNotificationsSupported;
   const [notificationSettings, setNotificationSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
 
   useEffect(() => {
     loadNotifications?.();
     if (isPatient()) loadRequests?.();
 
-    getSettings().then(settings => {
+    Promise.all([
+      getSettings(),
+      notificationAPI.getPreferences(),
+    ]).then(([localSettings, response]) => {
+      const serverSettings = response?.success ? response.preferences : {};
+      setNotificationSettings({ ...DEFAULT_NOTIFICATION_SETTINGS, ...localSettings, ...serverSettings });
+    }).catch(() => getSettings().then(settings => {
       setNotificationSettings({ ...DEFAULT_NOTIFICATION_SETTINGS, ...settings });
-    });
+    }));
   }, []);
 
   const updateNotificationSetting = async (key, value) => {
     const updated = { ...notificationSettings, [key]: value };
     setNotificationSettings(updated);
     await saveSettings(updated);
+    const response = await notificationAPI.updatePreferences(updated);
+    if (!response?.success) {
+      Alert.alert('Could not save preference', response?.error || 'Please try again.');
+    }
+  };
+
+  const openNotification = async (notification) => {
+    const id = notification.id || notification._id;
+    if (!notification.read) await markNotificationAsRead?.(id);
+    const data = notification.data || {};
+    const parent = navigation.getParent?.();
+    if (data.appointmentId && parent) {
+      parent.navigate('Appointments', {
+        screen: 'AppointmentDetails',
+        params: { appointmentId: data.appointmentId },
+      });
+    } else if ((data.recordId || data.prescriptionId) && parent) {
+      parent.navigate(isDoctor() ? 'Appointments' : 'Records', {
+        screen: 'RecordDetails',
+        params: { recordId: data.recordId || data.prescriptionId },
+      });
+    } else if (data.emergencyId && parent && !isPatient()) {
+      parent.navigate('Emergency', { screen: 'EmergencyList' });
+    }
   };
 
   const enableBrowserNotifications = async () => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window)) return;
+    if (!browserNotificationsSupported) {
+      Alert.alert('Not supported', 'This browser does not support notifications.');
+      return;
+    }
+
+    if (window.Notification.permission === 'denied') {
+      Alert.alert(
+        'Notifications are blocked',
+        'Allow notifications for this website in the browser site settings, then try again.'
+      );
+      return;
+    }
+
     const permission = await window.Notification.requestPermission();
-    setBrowserNotificationsEnabled(permission === 'granted');
+    setBrowserPermission(permission);
+
+    if (permission === 'granted') {
+      new window.Notification('Notifications enabled', {
+        body: 'You will receive new Anamiva alerts here.',
+      });
+    } else if (permission === 'denied') {
+      Alert.alert(
+        'Notifications are blocked',
+        'Allow notifications for this website in the browser site settings.'
+      );
+    }
   };
 
   const getNotificationIcon = (type) => {
@@ -150,15 +209,22 @@ const NotificationsScreen = ({ navigation }) => {
           </Card>
 
           {Platform.OS === 'web' && !browserNotificationsEnabled && (
-            <Button
-              size="sm"
-              variant="outline"
-              icon="bell"
-              onPress={enableBrowserNotifications}
-              style={styles.browserNotificationButton}
-            >
-              Enable browser notifications
-            </Button>
+            <View style={styles.browserNotificationBox}>
+              <Button
+                size="sm"
+                variant="outline"
+                icon="bell"
+                onPress={enableBrowserNotifications}
+                style={styles.browserNotificationButton}
+              >
+                Enable browser notifications
+              </Button>
+              {browserPermission === 'denied' && (
+                <Text style={styles.browserNotificationHint}>
+                  Notifications are blocked for this website. Allow them from the browser address-bar settings.
+                </Text>
+              )}
+            </View>
           )}
 
           {/* NOTIFICATIONS */}
@@ -166,7 +232,7 @@ const NotificationsScreen = ({ navigation }) => {
             notifications.map((notification) => (
               <Card
                 key={notification.id || notification._id}
-                onPress={() => !notification.read && markNotificationAsRead?.(notification.id || notification._id)}
+                onPress={() => openNotification(notification)}
                 style={[
                   styles.notificationCard,
                   !notification.read && styles.unreadCard,
@@ -361,7 +427,17 @@ const styles = StyleSheet.create({
 
   browserNotificationButton: {
     alignSelf: 'flex-start',
+  },
+
+  browserNotificationBox: {
     marginBottom: spacing.md,
+  },
+
+  browserNotificationHint: {
+    color: colors.gray[600],
+    fontSize: typography.fontSize.xs,
+    marginTop: spacing.xs,
+    maxWidth: 620,
   },
 
   notificationIcon: {
