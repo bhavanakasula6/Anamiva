@@ -8,7 +8,7 @@ import React from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { BarChart, LineChart } from 'react-native-chart-kit';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, Header } from '../../components/common';
+import { Card, Header, Loading } from '../../components/common';
 import AnalyticsFilterBar from '../../components/common/AnalyticsFilterBar';
 import Icon from '../../components/Icon';
 import { useDoctor } from '../../contexts/DoctorContext';
@@ -21,6 +21,7 @@ const AnalyticsScreen = ({ navigation }) => {
   const {
     analytics,
     analyticsFilter,
+    analyticsLoading,
     loadAnalytics,
   } = useDoctor();
 
@@ -209,7 +210,13 @@ const AnalyticsScreen = ({ navigation }) => {
           </View>
         )}
 
-        <View style={styles.content}>
+        {analyticsLoading && (
+          <View style={styles.loadingState}>
+            <Loading text="Loading analytics..." />
+          </View>
+        )}
+
+        {(analytics || !analyticsLoading) && <View style={styles.content}>
           {/* Overview Stats */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Overview</Text>
@@ -406,7 +413,7 @@ const AnalyticsScreen = ({ navigation }) => {
               )}
             </Card>
           </View>
-        </View>
+        </View>}
         {showFromPicker && !isWeb && (
           <DateTimePicker
             value={fromDate || new Date()}
@@ -466,6 +473,12 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
+  },
+  loadingState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 220,
+    padding: spacing.xl,
   },
   section: {
     marginBottom: spacing.xl,

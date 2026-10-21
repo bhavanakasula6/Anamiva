@@ -14,6 +14,7 @@ import { useDoctor } from '../../contexts/DoctorContext';
 import { APPOINTMENT_STATUS, APPOINTMENT_TYPES, CALL_STATUS } from '../../data/constants';
 import { appointmentAPI } from '../../services/api';
 import theme from '../../styles/theme';
+import { getAppointmentDisplayStatus } from '../../utils/appointmentStatus';
 const { colors, typography, spacing, borderRadius, shadows } = theme;
 
 const DoctorHomeScreen = ({ navigation }) => {
@@ -38,7 +39,7 @@ const DoctorHomeScreen = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       loadActiveEmergency();
-      loadAppointments();
+      loadAppointments({ limit: 100 });
       loadPendingRecords();
       loadAnalytics({ period: 'today', startDate: null, endDate: null });
     }, [])
@@ -48,10 +49,8 @@ const DoctorHomeScreen = ({ navigation }) => {
     [APPOINTMENT_TYPES.IN_PERSON]: 'Clinic',
     'in-person': 'Clinic',
   };
-  const ALLOWED_TODAY_STATUSES = [
-    APPOINTMENT_STATUS.PENDING,
-    APPOINTMENT_STATUS.UPCOMING,
-  ];
+  const getTodayDate = () =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
   const STATUS_BADGE_CONFIG = {
     [APPOINTMENT_STATUS.PENDING]: {
@@ -62,19 +61,22 @@ const DoctorHomeScreen = ({ navigation }) => {
       label: 'Upcoming',
       variant: 'success',
     },
+    [APPOINTMENT_STATUS.COMPLETED]: {
+      label: 'Completed',
+      variant: 'success',
+    },
+    [APPOINTMENT_STATUS.NO_SHOW]: {
+      label: 'No-show',
+      variant: 'danger',
+    },
   };
 
   const todayAppointments = useMemo(() => {
-    const today = new Date().toDateString();
+    const today = getTodayDate();
 
     return appointments.filter(apt => {
-      const isToday =
-        new Date(apt.date).toDateString() === today;
-
-      const isAllowedStatus =
-        ALLOWED_TODAY_STATUSES.includes(apt.status);
-
-      return isToday && isAllowedStatus;
+      const isToday = new Date(apt.date).toISOString().slice(0, 10) === today;
+      return isToday && apt.status !== APPOINTMENT_STATUS.CANCELLED;
     });
   }, [appointments]);
 
@@ -82,11 +84,7 @@ const DoctorHomeScreen = ({ navigation }) => {
     return <Loading fullScreen />;
   }
 
-  const uniqueTodayPatients = new Set(
-    todayAppointments.map(a => a.patient?.id)
-  ).size;
-
-  const revenue = analytics?.summary?.revenue ?? 0;
+  const todayAnalytics = analytics?.period === 'today' ? analytics : null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -119,19 +117,19 @@ const DoctorHomeScreen = ({ navigation }) => {
           <View style={[styles.statsGrid, isTabletUp && styles.statsGridWide]}>
             <StatCard
               title="Appointments"
-              value={todayAppointments.length}
+              value={todayAnalytics?.summary?.appointments ?? '-'}
               icon="calendar"
               color={colors.primary[500]}
             />
             <StatCard
               title="Patients"
-              value={uniqueTodayPatients}
+              value={todayAnalytics?.summary?.patients ?? '-'}
               icon="users"
               color={colors.success[500]}
             />
             <StatCard
               title="Revenue"
-              value={`₹${revenue}`}
+              value={todayAnalytics ? `₹${todayAnalytics.summary?.revenue ?? 0}` : '-'}
               icon="wallet"
               color={colors.warning[500]}
             />
@@ -297,10 +295,15 @@ const DoctorHomeScreen = ({ navigation }) => {
 
                   <View style={styles.badgeColumn}>
                     <Badge
-                      variant={STATUS_BADGE_CONFIG[appointment.status]?.variant}
+                      variant={
+                        STATUS_BADGE_CONFIG[getAppointmentDisplayStatus(appointment)]?.variant ||
+                        STATUS_BADGE_CONFIG[appointment.status]?.variant ||
+                        'gray'
+                      }
                       size="sm"
                     >
-                      {STATUS_BADGE_CONFIG[appointment.status]?.label}
+                      {STATUS_BADGE_CONFIG[getAppointmentDisplayStatus(appointment)]?.label ||
+                        getAppointmentDisplayStatus(appointment)}
                     </Badge>
 
                     <Badge variant="neutral" size="sm">

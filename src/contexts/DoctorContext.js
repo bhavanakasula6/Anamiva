@@ -34,7 +34,10 @@ export const DoctorProvider = ({ children }) => {
     startDate: null,
     endDate: null,
   });
+  const analyticsFilterRef = useRef(analyticsFilter);
   const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const analyticsRequestRef = useRef(0);
   const [loading, setLoading] = useState(false);
   const [lastLocation, setLastLocation] = useState(null);
 
@@ -253,9 +256,9 @@ export const DoctorProvider = ({ children }) => {
   };
 
 
-  const updateAppointmentStatus = async (appointmentId, status) => {
+  const updateAppointmentStatus = async (appointmentId, status, reason) => {
     try {
-      const response = await appointmentAPI.updateAppointmentStatus(appointmentId, status);
+      const response = await appointmentAPI.updateAppointmentStatus(appointmentId, status, reason);
       if (response.success) {
         setAppointments(prev =>
           prev.map(apt => (apt.id || apt._id) === appointmentId ? response.appointment : apt)
@@ -493,12 +496,25 @@ export const DoctorProvider = ({ children }) => {
   // Analytics
   // ============================================
 
-  const loadAnalytics = async (filter = analyticsFilter) => {
+  const loadAnalytics = async (filter) => {
+    const requestedFilter = filter || analyticsFilterRef.current;
+    const requestId = ++analyticsRequestRef.current;
+    setAnalyticsLoading(true);
+
     try {
-      setAnalyticsFilter(filter);
-      const response = await analyticsAPI.getDoctorAnalytics(filter);
+      analyticsFilterRef.current = requestedFilter;
+      setAnalyticsFilter(requestedFilter);
+      const response = await analyticsAPI.getDoctorAnalytics(requestedFilter);
+
+      // Home and Analytics can request different periods at the same time.
+      // Only the latest request may update the shared analytics state.
+      if (requestId !== analyticsRequestRef.current) {
+        return response;
+      }
+
       if (response.success) {
         setAnalytics({
+          period: requestedFilter.period || 'custom',
           summary: response.summary,
           chartData: response.chartData,
           demographics: response.demographics,
@@ -508,6 +524,10 @@ export const DoctorProvider = ({ children }) => {
     } catch (error) {
       console.error('Error loading analytics:', error);
       return { success: false, message: 'Failed to load analytics' };
+    } finally {
+      if (requestId === analyticsRequestRef.current) {
+        setAnalyticsLoading(false);
+      }
     }
   };
 
@@ -717,6 +737,7 @@ export const DoctorProvider = ({ children }) => {
     pendingRecords,
     notifications,
     analytics,
+    analyticsLoading,
     analyticsFilter,
     loading,
     requestAccess,

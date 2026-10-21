@@ -4,7 +4,6 @@
  */
 
 import {
-  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -35,31 +34,10 @@ import {
 import Icon from '../../components/Icon';
 
 const ProfileScreen = ({ navigation }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const isTabletUp = width >= 768;
-
-  const handleLogout = async () => {
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm('Are you sure you want to logout?');
-      if (confirmed) {
-        await logout();
-      }
-      return;
-    }
-
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-        },
-      },
-    ]);
-  };
 
   const MenuItem = ({
     icon,
@@ -182,27 +160,6 @@ const ProfileScreen = ({ navigation }) => {
           <View style={isTabletUp && styles.menuColumnWide}>
             {/* Main Menu */}
             <Card style={styles.section}>
-              <MenuItem
-                icon="calendar"
-                title="Appointments"
-                subtitle="View your appointments"
-                onPress={() => navigation.navigate('Appointments')}
-              />
-
-          <MenuItem
-            icon="file-text"
-            title="Medical Records"
-            subtitle="View your records"
-            onPress={() => navigation.navigate('MedicalRecords')}
-          />
-
-          <MenuItem
-            icon="pills"
-            title="Medications"
-            subtitle="View active medications"
-            onPress={() => navigation.navigate('Medications')}
-          />
-
           <MenuItem
             icon="heart-filled"
             title="Favorite Doctors"
@@ -213,38 +170,15 @@ const ProfileScreen = ({ navigation }) => {
 
             {/* Settings */}
             <Card style={styles.section}>
-              <MenuItem
-                icon="bell"
-                title="Notifications"
-                subtitle="Manage notifications"
-                onPress={() => navigation.navigate('Notifications')}
-              />
-
           <MenuItem
             icon="settings"
             title="Settings"
             subtitle="App preferences"
             onPress={() => navigation.navigate('Settings')}
           />
-
-          <MenuItem
-            icon="help-circle"
-            title="Help & Support"
-            subtitle="Get help"
-            onPress={() => navigation.navigate('HelpSupport')}
-          />
             </Card>
           </View>
         </View>
-
-        {/* Logout */}
-        <Button
-          variant="outline"
-          onPress={handleLogout}
-          style={styles.logoutButton}
-        >
-          Logout
-        </Button>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -378,11 +312,6 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.sm,
     color: colors.gray[600],
     marginTop: 2,
-  },
-
-  logoutButton: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
   },
 
   bottomPadding: {

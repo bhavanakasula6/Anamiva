@@ -17,4 +17,8 @@ export const isMissedAppointment = (appointment, now = new Date()) =>
   isAppointmentSlotPast(appointment, now);
 
 export const getAppointmentDisplayStatus = (appointment) =>
-  isMissedAppointment(appointment) ? 'missed' : appointment?.status;
+  isMissedAppointment(appointment)
+    ? 'missed'
+    : appointment?.status === APPOINTMENT_STATUS.NO_SHOW
+      ? 'no-show'
+      : appointment?.status;

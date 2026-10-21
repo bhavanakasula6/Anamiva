@@ -2,40 +2,57 @@
  * Doctor Profile Screen
  */
 
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, Button, Card, Header } from '../../components/common';
 import Icon from '../../components/Icon';
 import { useAuth } from '../../contexts/AuthContext';
+import { analyticsAPI } from '../../services/api';
 import { borderRadius, colors, shadows, spacing, typography } from '../../styles/theme';
 
 const DoctorProfileScreen = ({ navigation }) => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === 'web';
   const isTabletUp = width >= 768;
+  const [patientCount, setPatientCount] = useState(null);
 
-  const handleLogout = async () => {
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm('Are you sure you want to logout?');
-      if (confirmed) {
-        await logout();
-      }
-      return;
-    }
+  useEffect(() => {
+    let active = true;
 
-    Alert.alert('Logout', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-          // Navigation will happen automatically when auth state changes
-        },
-      },
-    ]);
-  };
+    analyticsAPI.getDoctorAnalytics({ period: 'all', startDate: null, endDate: null })
+      .then(response => {
+        if (active && response?.success) {
+          setPatientCount(response.summary?.patients ?? 0);
+        }
+      })
+      .catch(error => {
+        console.error('Error loading doctor patient count:', error);
+        if (active) setPatientCount(0);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const MenuItem = ({ icon, title, subtitle, onPress }) => (
+    <TouchableOpacity
+      style={styles.menuItem}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.menuIcon}>
+        <Icon name={icon} size={20} color={colors.primary[500]} />
+      </View>
+      <View style={styles.menuContent}>
+        <Text style={styles.menuTitle}>{title}</Text>
+        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+      </View>
+      <Icon name="chevron-right" size={18} color={colors.gray[400]} />
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -43,7 +60,6 @@ const DoctorProfileScreen = ({ navigation }) => {
         title="Profile"
         leftIcon="back"
         onLeftPress={() => navigation.goBack()}
-        variant="surface"
       />
       <ScrollView
         style={styles.container}
@@ -52,21 +68,22 @@ const DoctorProfileScreen = ({ navigation }) => {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Avatar source={{ uri: user?.avatar }} size={80} name={user?.fullName || user?.name} />
+          <Avatar
+            source={{ uri: user?.avatar || user?.profilePicture }}
+            size={80}
+            name={user?.fullName || user?.name}
+          />
           <Text style={styles.userName}>{user?.fullName || user?.name || 'Doctor'}</Text>
+          <Text style={styles.userEmail}>{user?.email || user?.phone || user?.phoneNumber || '-'}</Text>
           <Text style={styles.specialization}>{user?.specialization || 'General Physician'}</Text>
-          {(user?.address?.city || user?.address?.state) && (
-            <View style={styles.locationRow}>
-              <Icon name="map-pin" size={14} color={colors.gray[500]} />
-              <Text style={styles.locationText}>
-                {[user?.address?.city, user?.address?.state].filter(Boolean).join(', ')}
-              </Text>
-            </View>
-          )}
-          <View style={styles.ratingRow}>
-            <Icon name="star" size={16} color={colors.warning[500]} />
-            <Text style={styles.rating}>{user?.rating || '0'}</Text>
-          </View>
+          <Button
+            variant="outline"
+            size="sm"
+            style={styles.editButton}
+            onPress={() => navigation.navigate('DoctorEditProfile')}
+          >
+            Edit Profile
+          </Button>
         </View>
 
         {/* Stats */}
@@ -77,7 +94,7 @@ const DoctorProfileScreen = ({ navigation }) => {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{user?.totalPatients || 0}</Text>
+            <Text style={styles.statValue}>{patientCount ?? '-'}</Text>
             <Text style={styles.statLabel}>Patients</Text>
           </View>
           <View style={styles.statDivider} />
@@ -123,37 +140,14 @@ const DoctorProfileScreen = ({ navigation }) => {
 
           {/* Menu */}
           <Card style={[styles.section, isTabletUp && styles.menuSectionWide]}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('DoctorEditProfile')}>
-              <Icon name="edit" size={18} color={colors.gray[600]} />
-              <Text style={styles.menuText}>Edit Profile</Text>
-              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Appointments')}>
-              <Icon name="calendar" size={18} color={colors.gray[600]} />
-              <Text style={styles.menuText}>Appointments</Text>
-              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Notifications')}>
-              <Icon name="bell" size={18} color={colors.gray[600]} />
-              <Text style={styles.menuText}>Notifications</Text>
-              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
-              <Icon name="settings" size={18} color={colors.gray[600]} />
-              <Text style={styles.menuText}>Settings</Text>
-              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('HelpSupport')}>
-              <Icon name="help-circle" size={18} color={colors.gray[600]} />
-              <Text style={styles.menuText}>Help & Support</Text>
-              <Icon name="chevron-right" size={18} color={colors.gray[400]} />
-            </TouchableOpacity>
+            <MenuItem
+              icon="settings"
+              title="Settings"
+              subtitle="App preferences"
+              onPress={() => navigation.navigate('Settings')}
+            />
           </Card>
         </View>
-
-        <Button variant="outline" onPress={handleLogout} style={styles.logoutButton}>
-          Logout
-        </Button>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
@@ -188,6 +182,14 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     fontFamily: typography.fontFamily.bold,
     color: colors.gray[900],
+    marginTop: spacing.md,
+  },
+  userEmail: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[600],
+    marginTop: spacing.xs,
+  },
+  editButton: {
     marginTop: spacing.md,
   },
   specialization: {
@@ -304,23 +306,27 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.gray[200],
   },
   menuIcon: {
-    fontSize: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: spacing.md,
   },
-  menuText: {
+  menuContent: {
     flex: 1,
+    minWidth: 0,
+  },
+  menuTitle: {
     fontSize: typography.fontSize.base,
     fontFamily: typography.fontFamily.medium,
     color: colors.gray[900],
-    marginLeft: spacing.sm,
   },
-  menuArrow: {
-    fontSize: 20,
-    color: colors.gray[400],
-  },
-  logoutButton: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
+  menuSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[600],
+    marginTop: 2,
   },
   bottomPadding: {
     height: spacing.xl,

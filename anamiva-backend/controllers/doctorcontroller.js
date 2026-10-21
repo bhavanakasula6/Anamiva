@@ -2,6 +2,7 @@ const Doctor = require("../models/doctor");
 const User = require("../models/user");
 const Appointment = require("../models/appointment");
 const { calculateDistanceKm } = require("../services/geoservice");
+const { dateOnlyToUtc, getIndiaDateString, parseAppointmentDateTime } = require("../utils/appointmenttime");
 
 const escapeRegExp = (value = "") => {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -227,9 +228,8 @@ exports.getDoctorAvailability = async (req, res) => {
 
     // Find already booked slots for this doctor on this date
     // Parse YYYY-MM-DD safely to avoid timezone issues
-    const [y, mo, d] = date.split('-').map(Number);
-    const startOfDay = new Date(y, mo - 1, d, 0, 0, 0, 0);
-    const endOfDay = new Date(y, mo - 1, d, 23, 59, 59, 999);
+    const startOfDay = dateOnlyToUtc(date);
+    const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
 
     const bookedAppointments = await Appointment.find({
       doctorId: req.params.doctorId,
@@ -241,7 +241,7 @@ exports.getDoctorAvailability = async (req, res) => {
 
     // Check if queried date is today — mark past slots unavailable
     const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayStr = getIndiaDateString(now);
     const queryDateStr = date; // Already YYYY-MM-DD from frontend
     const isToday = queryDateStr === todayStr;
 
@@ -250,8 +250,7 @@ exports.getDoctorAvailability = async (req, res) => {
 
       // If today, disable slots that have already passed
       if (isToday && available) {
-        const [h, m] = time.split(':').map(Number);
-        const slotTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m);
+        const slotTime = parseAppointmentDateTime(date, time);
         if (slotTime <= now) {
           available = false;
         }

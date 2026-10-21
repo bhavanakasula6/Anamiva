@@ -5,6 +5,8 @@ const Consent = require('../models/consent');
 const Medication = require('../models/medication');
 const crypto = require('crypto');
 const { createNotification } = require('../services/notificationservice');
+const { dateOnlyToUtc, getIndiaDateString, parseAppointmentDateTime } = require('../utils/appointmenttime');
+const { normalizeDuration, calculateEndDate } = require('../utils/medicationduration');
 
 const parseOptionalDate = (value) => {
   if (!value) return undefined;
@@ -89,15 +91,14 @@ const calculateAge = (dateOfBirth) => {
 };
 
 const parseDateOnly = (date) => {
-  const [year, month, day] = String(date).split('-').map(Number);
-  return new Date(year, month - 1, day);
+  return dateOnlyToUtc(date);
 };
 
 const getAppointmentDateRange = (date) => {
   const day = parseDateOnly(date);
   return {
-    startOfDay: new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0),
-    endOfDay: new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59, 999),
+    startOfDay: day,
+    endOfDay: new Date(day.getTime() + 24 * 60 * 60 * 1000 - 1),
   };
 };
 
@@ -158,12 +159,11 @@ exports.createAppointment = async (req, res) => {
     }
 
     // Validate date range — parse YYYY-MM-DD safely to avoid timezone issues
-    const [year, month, day] = date.split('-').map(Number);
     const now = new Date();
 
     // Compare date only (strip time) — allow booking today
-    const appointmentDay = new Date(year, month - 1, day);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const appointmentDay = dateOnlyToUtc(date);
+    const today = dateOnlyToUtc(getIndiaDateString(now));
 
     if (appointmentDay < today) {
       return res.status(400).json({ success: false, message: 'Cannot book appointments in the past' });
@@ -171,15 +171,13 @@ exports.createAppointment = async (req, res) => {
 
     // If booking today, check the time slot hasn't passed
     if (appointmentDay.getTime() === today.getTime() && time) {
-      const [hours, minutes] = time.split(':').map(Number);
-      const slotTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+      const slotTime = parseAppointmentDateTime(date, time);
       if (slotTime <= now) {
         return res.status(400).json({ success: false, message: 'This time slot has already passed' });
       }
     }
 
-    const maxDate = new Date();
-    maxDate.setDate(maxDate.getDate() + 30);
+    const maxDate = dateOnlyToUtc(getIndiaDateString(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)));
     if (appointmentDay > maxDate) {
       return res.status(400).json({
         success: false,
@@ -285,65 +283,8 @@ exports.getAppointments = async (req, res) => {
     const { status, startDate, endDate, page = 1, limit = 20 } = req.query;
     let filter = {};
 
-    // ── Auto-expire past appointments ──────────────────────
-    // Move pending / upcoming appointments whose date+time have
-    // passed to "completed" so they no longer show in Upcoming.
-    try {
-      const now = new Date();
-      const expiredAppointments = await Appointment.find({
-        status: { $in: ['pending', 'upcoming'] },
-      });
-
-      const bulkOps = [];
-      const expiredAppointmentIds = [];
-      for (const apt of expiredAppointments) {
-        // Build the full appointment datetime from date + time
-        const aptDate = new Date(apt.date);
-        if (apt.time) {
-          const [hours, minutes] = apt.time.split(':').map(Number);
-          aptDate.setHours(hours, minutes, 0, 0);
-        }
-        // Add 30 minutes (slot duration) as a grace period
-        aptDate.setMinutes(aptDate.getMinutes() + 30);
-
-        if (aptDate < now) {
-          const prescriptionExists = await MedicalRecord.exists({
-            appointmentId: apt._id,
-            type: 'prescription',
-          });
-
-          // Keep the appointment open until the doctor has completed the prescription.
-          if (!prescriptionExists) continue;
-
-          expiredAppointmentIds.push(apt._id);
-          bulkOps.push({
-            updateOne: {
-              filter: { _id: apt._id },
-              update: { $set: { status: 'completed' } },
-            },
-          });
-        }
-      }
-
-      if (bulkOps.length > 0) {
-        const result = await Appointment.bulkWrite(bulkOps);
-        await Consent.updateMany(
-          {
-            appointmentId: { $in: expiredAppointmentIds },
-            type: 'consultation',
-            status: 'active',
-          },
-          {
-            $set: {
-              status: 'expired',
-              expiresAt: new Date(),
-            },
-          }
-        );
-      }
-    } catch (expireErr) {
-      console.warn('[getAppointments] Auto-expire check failed:', expireErr.message);
-    }
+    // Appointment completion is always an explicit doctor action.
+    // A prescription or a past appointment must never auto-close the appointment.
 
     if (req.user.role === "patient") {
       filter.patientId = req.user.id;
@@ -441,7 +382,7 @@ exports.getAppointmentById = async (req, res) => {
 ========================= */
 exports.updateStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, reason } = req.body;
     const appointment = await Appointment.findById(req.params.appointmentId);
 
     if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
@@ -461,9 +402,7 @@ exports.updateStatus = async (req, res) => {
     }
 
     if (status === 'completed') {
-      const appointmentDateTime = new Date(appointment.date);
-      const [hours, minutes] = String(appointment.time || '00:00').split(':').map(Number);
-      appointmentDateTime.setHours(hours, minutes, 0, 0);
+      const appointmentDateTime = parseAppointmentDateTime(appointment.date, appointment.time);
       appointmentDateTime.setMinutes(appointmentDateTime.getMinutes() + 30);
 
       if (new Date() < appointmentDateTime) {
@@ -487,6 +426,29 @@ exports.updateStatus = async (req, res) => {
       }
     }
 
+    if (status === 'no_show') {
+      if (!['pending', 'upcoming'].includes(appointment.status)) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_APPOINTMENT_STATE',
+          message: 'Only pending or upcoming appointments can be marked as no-show.',
+        });
+      }
+
+      const appointmentEnd = parseAppointmentDateTime(appointment.date, appointment.time);
+      appointmentEnd.setMinutes(appointmentEnd.getMinutes() + 30);
+      if (new Date() < appointmentEnd) {
+        return res.status(400).json({
+          success: false,
+          error: 'APPOINTMENT_NOT_FINISHED',
+          message: 'An appointment can be marked as no-show only after its scheduled period.',
+        });
+      }
+
+      appointment.noShowReason = String(reason || '').trim() || 'Patient did not attend the appointment.';
+      appointment.noShowAt = new Date();
+    }
+
     appointment.status = status;
 
     // Auto-generate video call room ID when online appointment becomes upcoming
@@ -500,6 +462,7 @@ exports.updateStatus = async (req, res) => {
       upcoming: 'Your appointment has been accepted.',
       cancelled: 'Your appointment has been cancelled.',
       completed: 'Your appointment has been marked as completed.',
+      no_show: 'Your appointment was marked as no-show by the doctor.',
     };
     await createNotification({
       userId: appointment.patientId,
@@ -509,7 +472,7 @@ exports.updateStatus = async (req, res) => {
       data: { appointmentId: appointment._id.toString(), status },
     });
 
-    if (status === 'completed' || status === 'cancelled') {
+    if (status === 'completed' || status === 'cancelled' || status === 'no_show') {
       await Consent.updateMany(
         {
           appointmentId: appointment._id,
@@ -570,11 +533,7 @@ exports.cancelAppointment = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized' });
 
     // Check 24-hour cancellation window
-    const appointmentDateTime = new Date(appointment.date);
-    if (appointment.time) {
-      const [hours, minutes] = appointment.time.split(':');
-      appointmentDateTime.setHours(Number(hours), Number(minutes));
-    }
+    const appointmentDateTime = parseAppointmentDateTime(appointment.date, appointment.time);
 
     const hoursUntilAppointment = (appointmentDateTime - new Date()) / (1000 * 60 * 60);
     const eligibleForRefund = hoursUntilAppointment >= 24;
@@ -812,6 +771,28 @@ exports.createPrescription = async (req, res) => {
     }
 
     // Create medical record as prescription
+    const prescriptionDate = parseOptionalDate(recordDate) || new Date();
+    const normalizedMedications = Array.isArray(medications)
+      ? medications.map((med) => {
+          const normalized = normalizeDuration(med);
+          return {
+            ...med,
+            ...(normalized || {}),
+          };
+        })
+      : [];
+
+    const hasInvalidDuration = normalizedMedications.some(
+      (med) => med.name && med.dosage && !normalizeDuration(med)
+    );
+    if (hasInvalidDuration) {
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_MEDICATION_DURATION',
+        message: 'Each medication must have a positive duration value and a unit: days, weeks, or months.',
+      });
+    }
+
     const record = await MedicalRecord.create({
       patientId: appointment.patientId,
       doctorId: doctorProfile._id,
@@ -821,8 +802,8 @@ exports.createPrescription = async (req, res) => {
       type: 'prescription',
       diagnosis: diagnosis || '',
       notes: notes || '',
-      recordDate: parseOptionalDate(recordDate) || new Date(),
-      medications: medications || [],
+      recordDate: prescriptionDate,
+      medications: normalizedMedications,
       status: 'verified',
     });
 
@@ -836,7 +817,9 @@ exports.createPrescription = async (req, res) => {
 
     const createdMedications = [];
     if (Array.isArray(medications)) {
-      for (const med of medications.filter(m => m.name && m.dosage)) {
+      for (const med of normalizedMedications.filter(m => m.name && m.dosage)) {
+        const medicationDuration = normalizeDuration(med);
+        const startDate = med.startDate || prescriptionDate;
         const medication = await Medication.create({
           patientId: appointment.patientId,
           doctorId: doctorProfile._id,
@@ -844,9 +827,11 @@ exports.createPrescription = async (req, res) => {
           name: med.name,
           dosage: med.dosage,
           frequency: med.frequency || '',
-          duration: med.duration || '',
-          startDate: med.startDate || record.recordDate || new Date(),
-          endDate: med.endDate || null,
+          duration: medicationDuration?.duration || med.duration || '',
+          durationValue: medicationDuration?.durationValue,
+          durationUnit: medicationDuration?.durationUnit,
+          startDate,
+          endDate: med.endDate || calculateEndDate(startDate, medicationDuration),
           active: true,
         });
         createdMedications.push(medication);
@@ -873,7 +858,7 @@ exports.createPrescription = async (req, res) => {
         id: record._id.toString(),
         ...record.toObject(),
         date: record.recordDate || record.createdAt,
-        medications: medications || [],
+        medications: normalizedMedications,
       },
       medications: createdMedications,
     });

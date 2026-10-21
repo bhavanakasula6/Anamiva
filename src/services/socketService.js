@@ -31,6 +31,8 @@ const socketService = {
       // WebSocket is preferred, but polling keeps hosted web deployments
       // working when a proxy temporarily blocks an upgrade.
       transports: ['websocket', 'polling'],
+      tryAllTransports: true,
+      timeout: 10000,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,

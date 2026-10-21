@@ -9,6 +9,8 @@ const medicationSchema = new mongoose.Schema(
     dosage: { type: String, required: true },
     frequency: String,
     duration: String,
+    durationValue: Number,
+    durationUnit: { type: String, enum: ['days', 'weeks', 'months'] },
     startDate: Date,
     endDate: Date,
     active: { type: Boolean, default: true },

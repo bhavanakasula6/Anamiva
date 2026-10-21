@@ -56,7 +56,14 @@
           "cameraPermission": "This app needs access to your camera to take a profile picture."
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Anamiva needs camera access for doctor consultations.",
+          "microphonePermission": "Anamiva needs microphone access for doctor consultations."
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": false

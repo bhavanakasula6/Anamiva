@@ -25,6 +25,8 @@ const appointmentSchema = new mongoose.Schema(
     notes: String,
     diagnosis: String,
     cancelReason: String,
+    noShowReason: String,
+    noShowAt: Date,
     rating: { type: Number, min: 1, max: 5 },
     review: String,
     ratedAt: Date,

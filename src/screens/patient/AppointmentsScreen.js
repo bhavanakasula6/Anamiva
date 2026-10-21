@@ -48,6 +48,7 @@ const AppointmentsScreen = ({ navigation }) => {
     { id: APPOINTMENT_STATUS.PENDING, label: 'Pending' },
     { id: APPOINTMENT_STATUS.UPCOMING, label: 'Upcoming' },
     { id: APPOINTMENT_STATUS.COMPLETED, label: 'Completed' },
+    { id: APPOINTMENT_STATUS.NO_SHOW, label: 'No-show' },
     { id: APPOINTMENT_STATUS.CANCELLED, label: 'Cancelled' },
   ];
 

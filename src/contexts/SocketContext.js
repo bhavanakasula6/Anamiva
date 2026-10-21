@@ -11,6 +11,7 @@ import { useAuth } from './AuthContext';
 import socketService from '../services/socketService';
 import IncomingCallModal from '../components/common/IncomingCallModal';
 import { appointmentAPI } from '../services/api';
+import { getSettings } from '../services/storage';
 
 const SocketContext = createContext(null);
 
@@ -37,13 +38,25 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (Platform.OS === 'web' || !user || !token) return undefined;
 
-    Notifications.getPermissionsAsync()
-      .then(async ({ status }) => {
+    const prepareNotifications = async () => {
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'Anamiva notifications',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#14B8A6',
+        });
+      }
+
+      const { status } = await Notifications.getPermissionsAsync();
         if (status !== 'granted') {
           await Notifications.requestPermissionsAsync();
         }
-      })
-      .catch((error) => console.warn('Unable to request notification permission:', error));
+    };
+
+    prepareNotifications().catch((error) =>
+      console.warn('Unable to prepare notification permission:', error)
+    );
 
     return undefined;
   }, [user, token]);
@@ -62,7 +75,21 @@ export const SocketProvider = ({ children }) => {
     const handleCallEnded = () => {
       setIncomingCall(null);
     };
-    const handleNotificationCreated = (notification) => {
+    const handleNotificationCreated = async (notification) => {
+      const settings = await getSettings();
+      if (!settings.notifications) return;
+
+      const notificationType = notification?.type;
+      const preferenceKey = notificationType === 'appointment'
+        ? 'appointmentNotifications'
+        : notificationType === 'emergency'
+          ? 'emergencyNotifications'
+          : notificationType === 'medical-record' || notificationType === 'prescription' || notificationType === 'record'
+            ? 'medicalRecordNotifications'
+            : null;
+
+      if (preferenceKey && settings[preferenceKey] === false) return;
+
       const title = notification?.title || 'New notification';
       const body = notification?.message || 'You have a new update in Anamiva.';
 
@@ -81,6 +108,7 @@ export const SocketProvider = ({ children }) => {
         content: {
           title,
           body,
+          ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
           data: notification?.data || {},
         },
         trigger: null,

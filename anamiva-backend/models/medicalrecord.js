@@ -27,6 +27,8 @@ const medicalRecordSchema = new mongoose.Schema(
         dosage: String,
         frequency: String,
         duration: String,
+        durationValue: Number,
+        durationUnit: { type: String, enum: ['days', 'weeks', 'months'] },
         startDate: Date,
         endDate: Date,
       },

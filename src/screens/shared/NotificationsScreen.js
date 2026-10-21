@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -33,6 +34,14 @@ import Icon from '../../components/Icon';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePatient } from '../../contexts/PatientContext';
 import { useDoctor } from '../../contexts/DoctorContext';
+import { getSettings, saveSettings } from '../../services/storage';
+
+const DEFAULT_NOTIFICATION_SETTINGS = {
+  notifications: true,
+  appointmentNotifications: true,
+  medicalRecordNotifications: true,
+  emergencyNotifications: true,
+};
 
 const NotificationsScreen = ({ navigation }) => {
   const { isPatient } = useAuth();
@@ -54,11 +63,22 @@ const NotificationsScreen = ({ navigation }) => {
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(
     Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window) || window.Notification.permission === 'granted'
   );
+  const [notificationSettings, setNotificationSettings] = useState(DEFAULT_NOTIFICATION_SETTINGS);
 
   useEffect(() => {
     loadNotifications?.();
     if (isPatient()) loadRequests?.();
+
+    getSettings().then(settings => {
+      setNotificationSettings({ ...DEFAULT_NOTIFICATION_SETTINGS, ...settings });
+    });
   }, []);
+
+  const updateNotificationSetting = async (key, value) => {
+    const updated = { ...notificationSettings, [key]: value };
+    setNotificationSettings(updated);
+    await saveSettings(updated);
+  };
 
   const enableBrowserNotifications = async () => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || !('Notification' in window)) return;
@@ -94,6 +114,41 @@ const NotificationsScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.content, Platform.OS === 'web' && styles.webContent]}>
+          <Card style={styles.preferencesCard}>
+            <Text style={styles.preferencesTitle}>Notification preferences</Text>
+            <Text style={styles.preferencesSubtitle}>
+              Choose which alerts can appear on this device.
+            </Text>
+
+            <PreferenceRow
+              title="Allow notifications"
+              subtitle="Enable or disable all notification alerts"
+              value={notificationSettings.notifications}
+              onValueChange={value => updateNotificationSetting('notifications', value)}
+            />
+            <PreferenceRow
+              title="Appointments"
+              subtitle="Bookings, changes, and appointment reminders"
+              value={notificationSettings.appointmentNotifications}
+              disabled={!notificationSettings.notifications}
+              onValueChange={value => updateNotificationSetting('appointmentNotifications', value)}
+            />
+            <PreferenceRow
+              title="Medical records"
+              subtitle="Prescription and medical record updates"
+              value={notificationSettings.medicalRecordNotifications}
+              disabled={!notificationSettings.notifications}
+              onValueChange={value => updateNotificationSetting('medicalRecordNotifications', value)}
+            />
+            <PreferenceRow
+              title="Emergency alerts"
+              subtitle="Emergency requests and status updates"
+              value={notificationSettings.emergencyNotifications}
+              disabled={!notificationSettings.notifications}
+              onValueChange={value => updateNotificationSetting('emergencyNotifications', value)}
+            />
+          </Card>
+
           {Platform.OS === 'web' && !browserNotificationsEnabled && (
             <Button
               size="sm"
@@ -247,6 +302,51 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   },
 
+  preferencesCard: {
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    ...shadows.sm,
+  },
+
+  preferencesTitle: {
+    fontSize: typography.fontSize.base,
+    fontFamily: typography.fontFamily.semiBold,
+    color: colors.gray[900],
+  },
+
+  preferencesSubtitle: {
+    fontSize: typography.fontSize.sm,
+    color: colors.gray[600],
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+
+  preferenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.gray[200],
+  },
+
+  preferenceText: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: spacing.md,
+  },
+
+  preferenceTitle: {
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.medium,
+    color: colors.gray[900],
+  },
+
+  preferenceSubtitle: {
+    fontSize: typography.fontSize.xs,
+    color: colors.gray[600],
+    marginTop: 2,
+  },
+
   unreadCard: {
     backgroundColor: colors.primary[50],
     borderLeftWidth: 4,
@@ -342,5 +442,21 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
 });
+
+const PreferenceRow = ({ title, subtitle, value, disabled, onValueChange }) => (
+  <View style={styles.preferenceRow}>
+    <View style={styles.preferenceText}>
+      <Text style={styles.preferenceTitle}>{title}</Text>
+      <Text style={styles.preferenceSubtitle}>{subtitle}</Text>
+    </View>
+    <Switch
+      value={value}
+      disabled={disabled}
+      onValueChange={onValueChange}
+      trackColor={{ false: colors.gray[300], true: colors.primary[200] }}
+      thumbColor={value ? colors.primary[500] : colors.gray[500]}
+    />
+  </View>
+);
 
 export default NotificationsScreen;

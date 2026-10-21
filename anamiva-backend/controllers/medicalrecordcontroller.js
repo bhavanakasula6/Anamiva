@@ -1,5 +1,6 @@
 const MedicalRecord = require('../models/medicalrecord');
 const Medication = require('../models/medication');
+const { normalizeDuration, calculateEndDate } = require('../utils/medicationduration');
 const Doctor = require('../models/doctor');
 const Consent = require('../models/consent');
 const path = require('path');
@@ -328,22 +329,30 @@ exports.transcribeRecord = async (req, res) => {
     record.diagnosis = diagnosis || '';
     record.notes = notes || '';
     record.recordDate = parseOptionalDate(recordDate) || record.recordDate || new Date();
-    record.medications = Array.isArray(medications) ? medications : [];
+    const normalizedMedications = Array.isArray(medications)
+      ? medications.map((med) => ({ ...med, ...(normalizeDuration(med) || {}) }))
+      : [];
+    record.medications = normalizedMedications;
     record.doctorId = await getDoctorProfileId(req.user);
     await record.save();
 
     // Auto-create medications from transcription
     const createdMedications = [];
-    if (medications && Array.isArray(medications)) {
-      for (const med of medications) {
+    if (normalizedMedications.length) {
+      for (const med of normalizedMedications) {
+        const medicationDuration = normalizeDuration(med);
+        const startDate = med.startDate || record.recordDate || new Date();
         const medication = await Medication.create({
           patientId: record.patientId,
           doctorId: record.doctorId,
           name: med.name,
           dosage: med.dosage,
           frequency: med.frequency,
-          startDate: med.startDate || record.recordDate || new Date(),
-          endDate: med.endDate || null,
+          duration: medicationDuration?.duration || med.duration || '',
+          durationValue: medicationDuration?.durationValue,
+          durationUnit: medicationDuration?.durationUnit,
+          startDate,
+          endDate: med.endDate || calculateEndDate(startDate, medicationDuration),
         });
         createdMedications.push(medication);
       }
@@ -398,6 +407,13 @@ exports.updatePrescription = async (req, res) => {
       delete updates.date;
     }
 
+    if (Array.isArray(updates.medications)) {
+      updates.medications = updates.medications.map((med) => ({
+        ...med,
+        ...(normalizeDuration(med) || {}),
+      }));
+    }
+
     const record = await MedicalRecord.findByIdAndUpdate(
       req.params.recordId,
       updates,
@@ -415,6 +431,8 @@ exports.updatePrescription = async (req, res) => {
       await Medication.deleteMany({ prescriptionRecordId: record._id });
 
       for (const med of updates.medications.filter(m => m.name && m.dosage)) {
+        const medicationDuration = normalizeDuration(med);
+        const startDate = med.startDate || record.recordDate || new Date();
         await Medication.create({
           patientId: record.patientId?._id || record.patientId,
           doctorId: record.doctorId?._id || record.doctorId,
@@ -422,9 +440,11 @@ exports.updatePrescription = async (req, res) => {
           name: med.name,
           dosage: med.dosage,
           frequency: med.frequency || '',
-          duration: med.duration || '',
-          startDate: med.startDate || record.recordDate || new Date(),
-          endDate: med.endDate || null,
+          duration: medicationDuration?.duration || med.duration || '',
+          durationValue: medicationDuration?.durationValue,
+          durationUnit: medicationDuration?.durationUnit,
+          startDate,
+          endDate: med.endDate || calculateEndDate(startDate, medicationDuration),
           active: true,
         });
       }

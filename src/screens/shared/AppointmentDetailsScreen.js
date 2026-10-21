@@ -9,6 +9,7 @@ import {
   Text,
   StyleSheet,
   Alert,
+  Modal,
   Platform,
   ScrollView,
   TextInput,
@@ -97,11 +98,15 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
   const [selectedRating, setSelectedRating] = useState(0);
   const [ratingReview, setRatingReview] = useState('');
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
+  const [showNoShowModal, setShowNoShowModal] = useState(false);
+  const [noShowReason, setNoShowReason] = useState('Patient did not attend the appointment.');
 
   const isCompleted = appointment?.status === APPOINTMENT_STATUS.COMPLETED;
   const isCancelled = appointment?.status === APPOINTMENT_STATUS.CANCELLED;
+  const isNoShow = appointment?.status === APPOINTMENT_STATUS.NO_SHOW;
   const isUpcoming = appointment?.status === APPOINTMENT_STATUS.UPCOMING;
   const isPending = appointment?.status === APPOINTMENT_STATUS.PENDING;
+  const isMissed = getAppointmentDisplayStatus(appointment) === 'missed';
 
   const submitRating = async () => {
     if (!selectedRating) {
@@ -425,6 +430,23 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
         },
       ]
     );
+  };
+
+  const markNoShow = async () => {
+    const reason = noShowReason.trim() || 'Patient did not attend the appointment.';
+    setActionLoading('no-show-appointment');
+    const res = await updateAppointmentStatus(
+      appointment.id,
+      APPOINTMENT_STATUS.NO_SHOW,
+      reason
+    );
+    setActionLoading(null);
+    if (res?.success) {
+      setAppointment(res.appointment);
+      setShowNoShowModal(false);
+    } else {
+      Alert.alert('Unable to mark no-show', res?.message || 'Please try again.');
+    }
   };
 
   const requestDoctorAccess = async () => {
@@ -911,6 +933,12 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                 </>
               )}
 
+              {isNoShow && appointment.noShowReason ? (
+                <Text style={styles.accessMuted}>
+                  No-show reason: {appointment.noShowReason}
+                </Text>
+              ) : null}
+
               {isPatient && isUpcoming && (
                 <>
                   {(!appointment.callStatus || appointment.callStatus === CALL_STATUS.IDLE) && (
@@ -984,7 +1012,7 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
           )}
 
           {/* Doctor Actions */}
-          {isDoctor && !isCancelled && !isCompleted && (
+          {isDoctor && !isCancelled && !isCompleted && !isNoShow && (
             <Card style={styles.card}>
               <Text style={styles.section}>Doctor Actions</Text>
 
@@ -1019,6 +1047,17 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
                 </Button>
               )}
 
+              {isMissed && (isPending || isUpcoming) && (
+                <Button
+                  variant="danger"
+                  loading={actionLoading === 'no-show-appointment'}
+                  disabled={!!actionLoading}
+                  onPress={() => setShowNoShowModal(true)}
+                >
+                  Mark as No-show
+                </Button>
+              )}
+
               {isUpcoming && (
                 <Button
                   variant="success"
@@ -1041,6 +1080,43 @@ const AppointmentDetailsScreen = ({ route, navigation }) => {
               )}
             </Card>
           )}
+
+          <Modal
+            visible={showNoShowModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowNoShowModal(false)}
+          >
+            <View style={styles.noShowOverlay}>
+              <View style={styles.noShowDialog}>
+                <Text style={styles.section}>Mark appointment as no-show?</Text>
+                <Text style={styles.accessMuted}>
+                  This ends consultation access and notifies the patient.
+                </Text>
+                <TextInput
+                  style={styles.noShowInput}
+                  value={noShowReason}
+                  onChangeText={setNoShowReason}
+                  placeholder="Reason"
+                  placeholderTextColor={colors.gray[400]}
+                  multiline
+                />
+                <View style={styles.noShowActions}>
+                  <Button variant="outline" onPress={() => setShowNoShowModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="danger"
+                    loading={actionLoading === 'no-show-appointment'}
+                    disabled={!!actionLoading}
+                    onPress={markNoShow}
+                  >
+                    Confirm
+                  </Button>
+                </View>
+              </View>
+            </View>
+          </Modal>
 
         </View>
       </ScrollView>
@@ -1188,6 +1264,36 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     color: colors.gray[900],
     textAlignVertical: 'top',
+  },
+  noShowOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  noShowDialog: {
+    width: '100%',
+    maxWidth: 460,
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  noShowInput: {
+    minHeight: 84,
+    borderWidth: 1,
+    borderColor: colors.gray[300],
+    borderRadius: 8,
+    padding: spacing.md,
+    color: colors.gray[900],
+    textAlignVertical: 'top',
+  },
+  noShowActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
   },
   medName: {
     fontSize: typography.fontSize.sm,

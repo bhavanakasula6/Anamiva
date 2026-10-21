@@ -290,8 +290,8 @@ export const appointmentAPI = {
   },
 
   // Update appointment status
-  updateAppointmentStatus: async (appointmentId, status) => {
-    const response = await httpClient.patch(`/appointments/${appointmentId}/status`, { status });
+  updateAppointmentStatus: async (appointmentId, status, reason) => {
+    const response = await httpClient.patch(`/appointments/${appointmentId}/status`, { status, reason });
     return response;
   },
 

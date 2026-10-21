@@ -51,6 +51,7 @@ const DoctorAppointmentsScreen = ({ navigation }) => {
     { id: 'pending', label: 'Pending' },
     { id: 'upcoming', label: 'Upcoming' },
     { id: 'completed', label: 'Completed' },
+    { id: 'no_show', label: 'No-show' },
     { id: 'cancelled', label: 'Cancelled' },
   ];
 

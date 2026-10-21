@@ -16,13 +16,18 @@ module.exports = (io, socket) => {
     }
 
     const room = `call_${roomId}`;
+    const existingPeers = io.sockets.adapter.rooms.get(room);
+    const hasExistingPeer = Boolean(existingPeers && existingPeers.size > 0);
     socket.join(room);
     socket.callRoomId = room;
     socket.callUserId = userId;
 
-
-    // Notify the other participant that a peer has joined
-    socket.to(room).emit("peer-joined", { userId, role });
+    // Notify both sides when the second participant joins. This handles both
+    // join orders and prevents the offer from being lost during navigation.
+    if (hasExistingPeer) {
+      socket.emit("peer-joined", { userId, role });
+      socket.to(room).emit("peer-joined", { userId, role });
+    }
   });
 
   /**

@@ -1,6 +1,7 @@
 const Appointment = require('../models/appointment');
 const Doctor = require('../models/doctor');
 const User = require('../models/user');
+const { dateOnlyToUtc, getIndiaDateString } = require('../utils/appointmenttime');
 
 exports.getDoctorAnalytics = async (req, res, next) => {
   try {
@@ -18,9 +19,11 @@ exports.getDoctorAnalytics = async (req, res, next) => {
     let end = new Date();
 
     if (period === 'today') {
-      const now = new Date();
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      start = dateOnlyToUtc(getIndiaDateString(new Date()));
+      end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+    } else if (period === 'all') {
+      start = new Date(0);
+      end = new Date('2999-12-31T23:59:59.999Z');
     } else if (period === 'week') {
       start.setDate(start.getDate() - 7);
     } else if (period === 'month') {
@@ -42,9 +45,10 @@ exports.getDoctorAnalytics = async (req, res, next) => {
     }).populate('patientId');
 
     // 4. Calculate Summary Metrics
-    const completedAppointments = appointments.filter(a => a.status === 'completed');
+    const countedAppointments = appointments.filter(a => a.status !== 'cancelled');
+    const completedAppointments = countedAppointments.filter(a => a.status === 'completed');
     const revenue = completedAppointments.length * (doctor.consultationFee || 500);
-    const uniquePatients = new Set(appointments.map(a => a.patientId?._id?.toString())).size;
+    const uniquePatients = new Set(countedAppointments.map(a => a.patientId?._id?.toString())).size;
 
     // 5. Aggregate Chart Data (Daily breakdown)
     const dailyStats = {};
@@ -58,6 +62,7 @@ exports.getDoctorAnalytics = async (req, res, next) => {
     }
 
     appointments.forEach(apt => {
+      if (apt.status === 'cancelled') return;
       const d = new Date(apt.date).toISOString().split('T')[0];
       if (dailyStats[d]) {
         dailyStats[d].count += 1;
@@ -135,7 +140,7 @@ exports.getDoctorAnalytics = async (req, res, next) => {
       success: true,
       summary: {
         revenue,
-        appointments: appointments.length,
+        appointments: countedAppointments.length,
         patients: uniquePatients,
         rating: doctor.rating || 0
       },

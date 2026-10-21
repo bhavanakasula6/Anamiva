@@ -26,6 +26,7 @@ import {
     Input,
     Header,
     Loading,
+    DropdownPicker,
 } from '../../components/common';
 
 import Icon from '../../components/Icon';
@@ -42,19 +43,35 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
         createPrescription,
         updatePrescription,
         getAppointmentPrescription,
-        refreshData,
     } = useDoctor();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [saveMessage, setSaveMessage] = useState('');
 
     const [prescriptionId, setPrescriptionId] = useState(null);
     const [recordDate, setRecordDate] = useState(new Date().toISOString().slice(0, 10));
     const [diagnosis, setDiagnosis] = useState('');
     const [notes, setNotes] = useState('');
     const [medications, setMedications] = useState([
-        { name: '', dosage: '', frequency: '', duration: '' },
+        { name: '', dosage: '', frequency: '', durationValue: '', durationUnit: 'days' },
     ]);
+
+    const durationUnits = ['days', 'weeks', 'months'];
+
+    const normalizeLoadedMedication = (med) => {
+        if (med.durationValue) {
+            return { ...med, durationValue: String(med.durationValue), durationUnit: med.durationUnit || 'days' };
+        }
+        const match = String(med.duration || '').trim().toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(day|days|week|weeks|month|months)?$/);
+        return {
+            ...med,
+            durationValue: match ? match[1] : '',
+            durationUnit: med.durationUnit || (
+                match?.[2]?.startsWith('week') ? 'weeks' : match?.[2]?.startsWith('month') ? 'months' : 'days'
+            ),
+        };
+    };
 
     const isLocked =
         appointmentStatus === APPOINTMENT_STATUS.COMPLETED ||
@@ -82,8 +99,8 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
                 setNotes(res.prescription.notes || '');
                 setMedications(
                     res.prescription.medications?.length
-                        ? res.prescription.medications
-                        : [{ name: '', dosage: '', frequency: '', duration: '' }]
+                        ? res.prescription.medications.map(normalizeLoadedMedication)
+                        : [{ name: '', dosage: '', frequency: '', durationValue: '', durationUnit: 'days' }]
                 );
             }
 
@@ -97,7 +114,7 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
     const addMedication = () => {
         setMedications(prev => [
             ...prev,
-            { name: '', dosage: '', frequency: '', duration: '' },
+            { name: '', dosage: '', frequency: '', durationValue: '', durationUnit: 'days' },
         ]);
     };
 
@@ -138,41 +155,54 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
             return;
         }
 
-        setSaving(true);
-
-        let res;
-
-        if (isEditMode) {
-            // ✅ UPDATE
-            res = await updatePrescription(prescriptionId, {
-                recordDate,
-                diagnosis,
-                notes,
-                medications: validMeds,
-            });
-        } else {
-            // ✅ CREATE
-            res = await createPrescription(appointmentId, {
-                recordDate,
-                diagnosis,
-                notes,
-                medications: validMeds,
-            });
-        }
-
-        setSaving(false);
-
-        if (!res?.success) {
-            Alert.alert('Error', 'Failed to save prescription');
+        const hasInvalidDuration = validMeds.some(
+            m => !Number.isFinite(Number(m.durationValue)) || Number(m.durationValue) <= 0 || !durationUnits.includes(m.durationUnit)
+        );
+        if (hasInvalidDuration) {
+            Alert.alert('Validation error', 'Enter a valid duration value and select days, weeks, or months for every medication');
             return;
         }
 
-        await refreshData();
+        setSaving(true);
+        setSaveMessage('Saving prescription...');
 
-        navigation.navigate('AppointmentDetails', {
-            appointmentId,
-            refresh: Date.now(),
-        });
+        try {
+            let res;
+
+            if (isEditMode) {
+                res = await updatePrescription(prescriptionId, {
+                    recordDate,
+                    diagnosis,
+                    notes,
+                    medications: validMeds,
+                });
+            } else {
+                res = await createPrescription(appointmentId, {
+                    recordDate,
+                    diagnosis,
+                    notes,
+                    medications: validMeds,
+                });
+            }
+
+            if (!res?.success) {
+                throw new Error(res?.message || 'Failed to save prescription');
+            }
+
+            // The DoctorContext refreshes appointments after a successful save.
+            // Avoid a second full dashboard refresh before returning to details.
+            setSaveMessage('Prescription saved. Opening appointment...');
+            navigation.navigate('AppointmentDetails', {
+                appointmentId,
+                refresh: Date.now(),
+            });
+        } catch (error) {
+            console.error('Error saving prescription:', error);
+            setSaveMessage('');
+            Alert.alert('Unable to save prescription', error?.message || 'Please try again.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (loading) {
@@ -257,10 +287,20 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
                                 />
 
                                 <Input
-                                    placeholder="Duration (e.g. 5 days)"
-                                    value={med.duration}
-                                    onChangeText={v => updateMedication(index, 'duration', v)}
+                                    placeholder="Duration value (e.g. 5)"
+                                    value={String(med.durationValue || '')}
+                                    onChangeText={v => updateMedication(index, 'durationValue', v.replace(/[^0-9.]/g, ''))}
+                                    keyboardType="numeric"
                                     editable={!isLocked}
+                                />
+
+                                <DropdownPicker
+                                    label="Duration unit"
+                                    value={med.durationUnit}
+                                    options={durationUnits}
+                                    onSelect={v => updateMedication(index, 'durationUnit', v)}
+                                    disabled={isLocked}
+                                    searchable={false}
                                 />
                             </View>
                         ))}
@@ -296,6 +336,9 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
                         >
                             {isEditMode ? 'Save Changes' : 'Create Prescription'}
                         </Button>
+                        {saving && (
+                            <Text style={styles.saveMessage}>{saveMessage}</Text>
+                        )}
                     </View>
                 )}
 
@@ -371,6 +414,13 @@ const styles = StyleSheet.create({
 
     bottomBar: {
         marginTop: spacing.lg,
+    },
+
+    saveMessage: {
+        marginTop: spacing.sm,
+        textAlign: 'center',
+        color: colors.gray[600],
+        fontSize: typography.fontSize.sm,
     },
 
     lockedText: {
