@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "medApp_native",
-    "slug": "medApp_native",
+    "name": "Anamiva Care",
+    "slug": "anamiva-care",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

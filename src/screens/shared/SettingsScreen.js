@@ -136,10 +136,10 @@ const SettingsScreen = ({ navigation }) => {
             <Card style={styles.card}>
               <SettingItem
                 icon="info"
-                title="About MedApp"
+                title="About Anamiva Care"
                 subtitle="Version 1.0.0"
                 onPress={() =>
-                  Alert.alert('MedApp', 'Version 1.0.0\n\nYour healthcare companion')
+                  Alert.alert('Anamiva Care', 'Version 1.0.0\n\nYour healthcare companion')
                 }
               />
             </Card>
