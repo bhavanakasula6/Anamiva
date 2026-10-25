@@ -23,7 +23,6 @@ import Icon from '../../components/Icon';
 const SettingsScreen = ({ navigation }) => {
   const { user, logout } = useAuth();
   const isDoctor = user?.role === 'doctor';
-
   const handleLogout = async () => {
     if (Platform.OS === 'web') {
       const confirmed = window.confirm('Are you sure you want to logout?');
@@ -68,12 +67,11 @@ const SettingsScreen = ({ navigation }) => {
           {/* ACCOUNT */}
           <Section title="Account">
             <Card style={styles.card}>
-
               <SettingItem
                 icon="bell"
-                title="Notifications"
-                subtitle="Manage notification preferences"
-                onPress={() => navigation.navigate('Notifications')}
+                title="Notification preferences"
+                subtitle="Choose which alerts you receive"
+                onPress={() => navigation.navigate('NotificationSettings')}
               />
               <Divider />
 

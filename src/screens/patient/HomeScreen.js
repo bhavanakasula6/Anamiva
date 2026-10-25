@@ -13,6 +13,7 @@ import { colors, typography, spacing, borderRadius, shadows } from '../../styles
 import { Card, Avatar, Badge, Button, Loading } from '../../components/common';
 import Icon from '../../components/Icon';
 import { APPOINTMENT_STATUS } from '../../data/constants';
+import { getAppointmentStartDate } from '../../utils/appointmentStatus';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -99,14 +100,10 @@ const HomeScreen = ({ navigation }) => {
     const upcoming = appointments
       .filter(apt => {
         if (apt.status !== APPOINTMENT_STATUS.UPCOMING) return false;
-        const aptDate = new Date(apt.date);
-        if (apt.time) {
-          const [hours, minutes] = apt.time.split(':').map(Number);
-          aptDate.setHours(hours, minutes, 0, 0);
-        }
-        return aptDate > now;
+        const appointmentStart = getAppointmentStartDate(apt);
+        return appointmentStart && appointmentStart > now;
       })
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .sort((a, b) => getAppointmentStartDate(a) - getAppointmentStartDate(b))
       .slice(0, 3);
     setUpcomingAppointments(upcoming);
   }, [appointments]);

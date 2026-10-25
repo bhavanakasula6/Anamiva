@@ -76,7 +76,10 @@ const DoctorHomeScreen = ({ navigation }) => {
 
     return appointments.filter(apt => {
       const isToday = new Date(apt.date).toISOString().slice(0, 10) === today;
-      return isToday && apt.status !== APPOINTMENT_STATUS.CANCELLED;
+      return isToday && ![
+        APPOINTMENT_STATUS.CANCELLED,
+        APPOINTMENT_STATUS.COMPLETED,
+      ].includes(apt.status);
     });
   }, [appointments]);
 

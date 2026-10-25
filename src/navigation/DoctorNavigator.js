@@ -26,6 +26,7 @@ import {
   AppointmentDetailsScreen,
   HelpSupportScreen,
   NotificationsScreen,
+  NotificationSettingsScreen,
   RecordDetailsScreen,
   SettingsScreen,
 } from '../screens/shared';
@@ -53,6 +54,7 @@ const HomeStack = () => (
     <Stack.Screen name="DoctorRecordVerification" component={DoctorRecordVerificationScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     <Stack.Screen name="DoctorEditProfile" component={DoctorEditProfileScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="RecordDetails" component={RecordDetailsScreen} />
@@ -70,6 +72,7 @@ const AppointmentsStack = () => (
     <Stack.Screen name="VideoCall" component={VideoCallScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     <Stack.Screen name="DoctorEditProfile" component={DoctorEditProfileScreen} />
   </Stack.Navigator>
 );
@@ -85,6 +88,7 @@ const AnalyticsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AnalyticsMain" component={AnalyticsScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     <Stack.Screen name="DoctorEditProfile" component={DoctorEditProfileScreen} />
   </Stack.Navigator>
 );
@@ -93,6 +97,7 @@ const ProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="DoctorProfileMain" component={DoctorProfileScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     <Stack.Screen name="DoctorEditProfile" component={DoctorEditProfileScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />

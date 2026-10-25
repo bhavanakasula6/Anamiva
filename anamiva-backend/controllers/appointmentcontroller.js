@@ -836,6 +836,7 @@ exports.createPrescription = async (req, res) => {
           patientId: appointment.patientId,
           doctorId: doctorProfile._id,
           prescriptionRecordId: record._id,
+          prescribedDate: prescriptionDate,
           name: med.name,
           dosage: med.dosage,
           frequency: med.frequency || '',

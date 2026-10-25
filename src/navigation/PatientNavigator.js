@@ -27,6 +27,7 @@ import {
 // Shared screens
 import {
   NotificationsScreen,
+  NotificationSettingsScreen,
   SettingsScreen,
   HelpSupportScreen,
   RecordDetailsScreen,
@@ -55,6 +56,7 @@ const HomeStack = () => (
     <Stack.Screen name="EmergencyRequest" component={EmergencyRequestScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="FavoriteDoctors" component={FavoriteDoctorsScreen} />
@@ -79,6 +81,7 @@ const RecordsStack = () => (
     <Stack.Screen name="UploadRecord" component={UploadRecordScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="RecordDetails" component={RecordDetailsScreen} />
@@ -100,6 +103,7 @@ const ProfileStack = () => (
     <Stack.Screen name="UploadRecord" component={UploadRecordScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="Settings" component={SettingsScreen} />
+    <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
     <Stack.Screen name="DoctorDetails" component={DoctorDetailsScreen} />
     <Stack.Screen name="BookAppointment" component={BookAppointmentScreen} />

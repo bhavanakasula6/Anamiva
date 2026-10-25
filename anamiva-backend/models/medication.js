@@ -5,6 +5,7 @@ const medicationSchema = new mongoose.Schema(
     patientId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     doctorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Doctor' },
     prescriptionRecordId: { type: mongoose.Schema.Types.ObjectId, ref: 'MedicalRecord' },
+    prescribedDate: Date,
     name: { type: String, required: true },
     dosage: { type: String, required: true },
     frequency: String,

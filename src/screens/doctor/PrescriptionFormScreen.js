@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
     View,
     Text,
@@ -14,6 +15,7 @@ import {
     ScrollView,
     Alert,
     Platform,
+    TouchableOpacity,
     useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -54,14 +56,56 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
     const [diagnosis, setDiagnosis] = useState('');
     const [notes, setNotes] = useState('');
     const [medications, setMedications] = useState([
-        { name: '', dosage: '', frequency: '', durationValue: '', durationUnit: 'days' },
+        { name: '', dosage: '', frequency: '', frequencyMode: 'standard', durationValue: '', durationUnit: 'days', startDate: '' },
     ]);
 
     const durationUnits = ['days', 'weeks', 'months'];
+    const frequencyOptions = [
+        'Other / Custom',
+        'Morning',
+        'Afternoon',
+        'Evening',
+        'Night',
+        'Morning and night',
+        'Morning, afternoon and night',
+        'Once daily',
+        'Twice daily',
+        'Three times daily',
+        'With meals',
+        'After meals',
+        'Before meals',
+        'Every 2 hours',
+        'Every 4 hours',
+        'Every 6 hours',
+        'Every 8 hours',
+        'Every 12 hours',
+        'As needed',
+    ];
+    const [startDatePickerIndex, setStartDatePickerIndex] = useState(null);
+
+    const dateFromInput = (value) => {
+        const [year, month, day] = String(value || '').split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return year && month && day && !Number.isNaN(date.getTime()) ? date : new Date();
+    };
+
+    const formatDisplayDate = (value) => {
+        if (!value) return 'Select start date';
+        return dateFromInput(value).toLocaleDateString('en-IN', {
+            day: 'numeric', month: 'short', year: 'numeric',
+        });
+    };
+
+    const formatInputDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     const normalizeLoadedMedication = (med) => {
         if (med.durationValue) {
-            return { ...med, durationValue: String(med.durationValue), durationUnit: med.durationUnit || 'days' };
+            return { ...med, durationValue: String(med.durationValue), durationUnit: med.durationUnit || 'days', frequencyMode: med.frequency && !frequencyOptions.includes(med.frequency) ? 'custom' : 'standard', startDate: med.startDate ? new Date(med.startDate).toISOString().slice(0, 10) : '' };
         }
         const match = String(med.duration || '').trim().toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(day|days|week|weeks|month|months)?$/);
         return {
@@ -70,6 +114,8 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
             durationUnit: med.durationUnit || (
                 match?.[2]?.startsWith('week') ? 'weeks' : match?.[2]?.startsWith('month') ? 'months' : 'days'
             ),
+            startDate: med.startDate ? new Date(med.startDate).toISOString().slice(0, 10) : '',
+            frequencyMode: med.frequency && !frequencyOptions.includes(med.frequency) ? 'custom' : 'standard',
         };
     };
 
@@ -100,7 +146,7 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
                 setMedications(
                     res.prescription.medications?.length
                         ? res.prescription.medications.map(normalizeLoadedMedication)
-                        : [{ name: '', dosage: '', frequency: '', durationValue: '', durationUnit: 'days' }]
+                        : [{ name: '', dosage: '', frequency: '', frequencyMode: 'standard', durationValue: '', durationUnit: 'days', startDate: '' }]
                 );
             }
 
@@ -114,7 +160,7 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
     const addMedication = () => {
         setMedications(prev => [
             ...prev,
-            { name: '', dosage: '', frequency: '', durationValue: '', durationUnit: 'days' },
+            { name: '', dosage: '', frequency: '', frequencyMode: 'standard', durationValue: '', durationUnit: 'days', startDate: '' },
         ]);
     };
 
@@ -160,6 +206,14 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
         );
         if (hasInvalidDuration) {
             Alert.alert('Validation error', 'Enter a valid duration value and select days, weeks, or months for every medication');
+            return;
+        }
+
+        const hasInvalidStartDate = validMeds.some(
+            m => m.startDate && Number.isNaN(new Date(m.startDate).getTime())
+        );
+        if (hasInvalidStartDate) {
+            Alert.alert('Validation error', 'Enter each start date in YYYY-MM-DD format or leave it blank');
             return;
         }
 
@@ -279,12 +333,80 @@ const PrescriptionFormScreen = ({ route, navigation }) => {
                                     editable={!isLocked}
                                 />
 
-                                <Input
-                                    placeholder="Frequency (e.g. Twice daily)"
-                                    value={med.frequency}
-                                    onChangeText={v => updateMedication(index, 'frequency', v)}
-                                    editable={!isLocked}
+                                <DropdownPicker
+                                    label="Frequency"
+                                    value={med.frequencyMode === 'custom' ? 'Other / Custom' : med.frequency}
+                                    options={frequencyOptions}
+                                    onSelect={v => {
+                                        if (v === 'Other / Custom') {
+                                            updateMedication(index, 'frequencyMode', 'custom');
+                                            updateMedication(index, 'frequency', '');
+                                        } else {
+                                            updateMedication(index, 'frequencyMode', 'standard');
+                                            updateMedication(index, 'frequency', v);
+                                        }
+                                    }}
+                                    disabled={isLocked}
+                                    searchable
                                 />
+
+                                {med.frequencyMode === 'custom' && (
+                                    <Input
+                                        label="Custom frequency"
+                                        placeholder="Enter frequency or instructions"
+                                        value={med.frequency || ''}
+                                        onChangeText={v => updateMedication(index, 'frequency', v)}
+                                        editable={!isLocked}
+                                    />
+                                )}
+
+                                {Platform.OS === 'web' ? (
+                                    <View style={styles.dateField}>
+                                        <Text style={styles.dateLabel}>Start date (optional)</Text>
+                                        {React.createElement('input', {
+                                            type: 'date',
+                                            value: med.startDate || '',
+                                            onChange: event => updateMedication(index, 'startDate', event.target.value),
+                                            disabled: isLocked,
+                                            style: {
+                                                width: '100%',
+                                                minHeight: 48,
+                                                boxSizing: 'border-box',
+                                                padding: '0 12px',
+                                                border: '1px solid #D1D5DB',
+                                                borderRadius: 8,
+                                                backgroundColor: isLocked ? '#F3F4F6' : '#FFFFFF',
+                                                color: '#111827',
+                                                fontSize: 16,
+                                            },
+                                        })}
+                                    </View>
+                                ) : (
+                                    <View style={styles.dateField}>
+                                        <Text style={styles.dateLabel}>Start date (optional)</Text>
+                                        <TouchableOpacity
+                                            style={[styles.dateButton, isLocked && styles.dateButtonDisabled]}
+                                            disabled={isLocked}
+                                            onPress={() => setStartDatePickerIndex(index)}
+                                        >
+                                            <Text style={[styles.dateButtonText, !med.startDate && styles.datePlaceholder]}>
+                                                {formatDisplayDate(med.startDate)}
+                                            </Text>
+                                            <Icon name="calendar" size={18} color={colors.gray[500]} />
+                                        </TouchableOpacity>
+                                        {startDatePickerIndex === index && (
+                                            <DateTimePicker
+                                                value={med.startDate ? dateFromInput(med.startDate) : new Date()}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(_, selectedDate) => {
+                                                    setStartDatePickerIndex(null);
+                                                    if (selectedDate) updateMedication(index, 'startDate', formatInputDate(selectedDate));
+                                                }}
+                                            />
+                                        )}
+                                    </View>
+                                )}
 
                                 <Input
                                     placeholder="Duration value (e.g. 5)"
@@ -410,6 +532,42 @@ const styles = StyleSheet.create({
     medTitle: {
         fontSize: typography.fontSize.sm,
         fontFamily: typography.fontFamily.semiBold,
+    },
+
+    dateField: {
+        marginBottom: spacing.md,
+    },
+
+    dateLabel: {
+        color: colors.gray[700],
+        fontSize: typography.fontSize.sm,
+        marginBottom: spacing.xs,
+    },
+
+    dateButton: {
+        minHeight: 48,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.md,
+        borderWidth: 1,
+        borderColor: colors.gray[300],
+        borderRadius: borderRadius.md,
+        backgroundColor: colors.white,
+    },
+
+    dateButtonDisabled: {
+        backgroundColor: colors.gray[100],
+        opacity: 0.7,
+    },
+
+    dateButtonText: {
+        color: colors.gray[900],
+        fontSize: typography.fontSize.base,
+    },
+
+    datePlaceholder: {
+        color: colors.gray[500],
     },
 
     bottomBar: {

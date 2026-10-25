@@ -345,6 +345,7 @@ exports.transcribeRecord = async (req, res) => {
         const medication = await Medication.create({
           patientId: record.patientId,
           doctorId: record.doctorId,
+          prescribedDate: record.recordDate,
           name: med.name,
           dosage: med.dosage,
           frequency: med.frequency,
@@ -437,6 +438,7 @@ exports.updatePrescription = async (req, res) => {
           patientId: record.patientId?._id || record.patientId,
           doctorId: record.doctorId?._id || record.doctorId,
           prescriptionRecordId: record._id,
+          prescribedDate: record.recordDate,
           name: med.name,
           dosage: med.dosage,
           frequency: med.frequency || '',
